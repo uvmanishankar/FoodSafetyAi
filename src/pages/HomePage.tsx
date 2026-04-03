@@ -198,7 +198,7 @@ function SafetyTipsGrid() {
             className={cn('text-left p-4 rounded-2xl border transition-all duration-200',
               active===i ? 'border-primary/40 bg-primary/6 shadow-glow' : 'border-border bg-card hover:border-primary/30')}>
             <div className="flex items-start gap-3">
-              <span className="text-2xl shrink-0">{tip.emoji}</span>
+              <span className="text-2xl shrink-0">{tip.icon}</span>
               <div>
                 <span className={cn('text-[10px] font-700 uppercase tracking-widest',
                   active===i ? 'text-primary' : 'text-muted-foreground/60')}>{tip.category}</span>
@@ -416,7 +416,7 @@ export default function HomePage() {
                   your food.
                 </h1>
                 <p className="animate-fade-up delay-200 text-lg text-muted-foreground leading-relaxed mb-8 max-w-lg">
-                  Scan products, decode every ingredient, test for adulteration, track diseases, plan your diet, and expose corporate food manipulation — all free, all in one place.
+                  Scan products or any processed food items, decode every ingredient, test for adulteration, track diseases, plan your diet, and expose corporate food manipulation — all free, all in one place.
                 </p>
                 <div className="animate-fade-up delay-300 flex flex-wrap gap-3 mb-8">
                   <Link to="/analyze" className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl gradient-primary text-white font-semibold shadow-glow hover:shadow-glow-lg hover:opacity-92 transition-all">
