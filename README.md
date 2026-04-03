@@ -2,7 +2,6 @@
 
 > A comprehensive food safety awareness platform for Indian consumers — powered by AI, live news, and actionable health guidance.
 
-Iam mani
 ![React](https://img.shields.io/badge/React-18-blue?logo=react)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?logo=typescript)
 ![Vite](https://img.shields.io/badge/Vite-5-646CFF?logo=vite)
