@@ -131,9 +131,9 @@ export default function FloatingChatBot({
       console.error('Chat error:', err);
       let errorMsg: string;
       const e = err as { name?: string; isQuotaExhausted?: boolean; message?: string };
-      if (e?.name === 'GeminiQuotaError' && e.isQuotaExhausted) {
-        errorMsg = '⚠️ The AI assistant is temporarily unavailable — the daily API quota has been reached. Please try again later (resets within 24 hours).';
-      } else if (e?.name === 'GeminiQuotaError') {
+      if (e?.name === 'MistralQuotaError' && e.isQuotaExhausted) {
+        errorMsg = '⚠️ The AI assistant is temporarily unavailable — the API quota has been reached. Please try again later.';
+      } else if (e?.name === 'MistralQuotaError') {
         errorMsg = '⏳ Too many requests — please wait a few seconds and try again.';
       } else if (e?.message?.includes('API error')) {
         errorMsg = '❌ API error occurred. Please check your API key configuration.';

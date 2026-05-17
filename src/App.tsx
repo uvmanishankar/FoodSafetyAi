@@ -5,9 +5,7 @@ import HomePage from '@/pages/HomePage';
 import AlertsPage from '@/pages/AlertsPage';
 import AnalyzePage from '@/pages/AnalyzePage';
 import FoodTestingPage from '@/pages/FoodTestingPage';
-import FoodAwarenessPage from '@/pages/FoodAwarenessPage';
-import FoodbornePage from '@/pages/FoodbornePage';
-import NutritionPage from '@/pages/NutritionPage';
+import EducationPage from '@/pages/EducationPage';
 import ComplaintPage from '@/pages/ComplaintPage';
 import NotFound from '@/pages/NotFound';
 
@@ -20,9 +18,10 @@ export default function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/analyze" element={<AnalyzePage />} />
         <Route path="/testing-guide" element={<FoodTestingPage />} />
-        <Route path="/awareness" element={<FoodAwarenessPage />} />
-        <Route path="/foodborne" element={<FoodbornePage />} />
-        <Route path="/nutrition" element={<NutritionPage />} />
+        <Route path="/education" element={<EducationPage />} />
+        <Route path="/nutrition" element={<EducationPage />} />
+        <Route path="/awareness" element={<EducationPage />} />
+        <Route path="/foodborne" element={<EducationPage />} />
         <Route path="/alerts" element={<AlertsPage />} />
         <Route path="/complaint" element={<ComplaintPage />} />
         <Route path="*" element={<NotFound />} />

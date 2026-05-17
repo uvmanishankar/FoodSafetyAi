@@ -4,7 +4,9 @@ import {
   Heart, Apple, BarChart3, Clock, ArrowRight, Bot, Send, Loader2,
   User, Sparkles, ChevronDown, ChevronUp, CheckCircle2, Info,
   Zap, Scale, Sun, Moon, Coffee, Star, ArrowUpRight, Flame,
-  Activity, Shield, Leaf, Search, RefreshCw,
+  Activity, Shield, Leaf, Search, RefreshCw, Eye, AlertTriangle, ShieldOff,
+  Package, Tag, XCircle, ShoppingCart, Megaphone, BookOpen, Globe, Home, 
+  Building2, Bell, Thermometer, Microscope,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import FloatingChatBot from '@/components/FloatingChatBot';
@@ -180,30 +182,213 @@ Format with clear sections, specific food examples with portions, and practical 
   botIconBg: 'bg-emerald-100',
 };
 
-function DietPlanCard({plan}:{plan:typeof DIET_PLANS[0]}){
+// ========== AWARENESS DATA ==========
+const TACTICS = [
+  {
+    id:'shrinkflation', icon:Package, color:'text-red-600', bg:'bg-red-50', border:'border-red-200',
+    title:'Shrinkflation', subtitle:'Less product, same price, same packaging', severity:'High',
+    image:'https://images.unsplash.com/photo-1621939514649-280e2ee25f60?w=600&h=340&fit=crop&q=80',
+    description:'Companies silently reduce product quantity by 10–25% while keeping the same package size and price. The bag looks identical on the shelf — only the net weight tells the truth.',
+    examples:['Lays/Kurkure bags: same size bag, 10–15g less chips','Chocolate bars: same wrapper, thinner bar or one fewer square','Biscuit packs: one fewer biscuit per row','Fruit juice: 1L quietly became 950ml or 900ml','Soap bars: rounder shape conceals 10–15g reduction'],
+    howToSpot:'Always check the net weight printed on the back or bottom of packaging. Compare to older receipts. Price per 100g is more honest than per pack.',
+    impact:'Consumers pay ₹15–₹40 more per 100g without realising. Aggregate annual cost to an Indian household: ₹3,000–₹8,000.',
+    legal:'Legal in India. FSSAI requires net weight disclosure but doesn\'t restrict reductions.',
+    avoid:'Use price-per-100g. Compare before buying. Screenshot packaging periodically.',
+  },
+  {
+    id:'naturewashing', icon:Tag, color:'text-green-700', bg:'bg-green-50', border:'border-green-200',
+    title:'Nature-Washing', subtitle:'"Natural", "Pure", "Farm-fresh" — legally meaningless', severity:'High',
+    image:'https://images.unsplash.com/photo-1542838132-92c53300491e?w=600&h=340&fit=crop&q=80',
+    description:'Words like "natural", "pure", "wholesome", "farm-fresh" have no legal definition under FSSAI. Any product can print them freely regardless of what\'s actually inside.',
+    examples:['"Natural flavours" can be 100% lab-synthesised chemicals','"Farm fresh" juice may be 6-month-old concentrate','"Pure ghee" may be 95% palm oil if % isn\'t specified','"Whole grain" bread where whole grains are 4th after maida','"Made with real fruit" with 2% actual fruit juice'],
+    howToSpot:'Ignore all front-of-pack text. Flip to the ingredients list. Ingredients listed first = most abundant by weight.',
+    impact:'Consumers pay 30–80% premium for claims that have zero regulatory backing.',
+    legal:'Currently unregulated in India. FSSAI is drafting guidelines but they are not enforced.',
+    avoid:'Trust only FSSAI-certified claims, organic marks, and the actual ingredients list.',
+  },
+  {
+    id:'healthwashing', icon:BarChart3, color:'text-blue-600', bg:'bg-blue-50', border:'border-blue-200',
+    title:'Health-Washing', subtitle:'Hiding junk food behind selective nutrition claims', severity:'High',
+    image:'https://images.unsplash.com/photo-1607613009820-a29f7bb81c04?w=600&h=340&fit=crop&q=80',
+    description:'Products use one positive nutrition fact to seem healthy while burying the full picture. A product can be "high in protein" while being 35% saturated fat and containing 40g of sugar.',
+    examples:['"High protein" bars with 40g sugar and 300+ calories','"No added sugar" products loaded with maltodextrin or fruit concentrate','"Multigrain" crackers where all 5 grains are refined','"Baked not fried" chips with identical calorie count','"Zero trans fat" made with partially hydrogenated oils under disclosure threshold'],
+    howToSpot:'Look at total sugar, saturated fat, and sodium per 100g — not per "serving size". Sugar >10g/100g = high sugar product.',
+    impact:'Health-washed products account for ₹45,000 crore of India\'s packaged food market.',
+    legal:'Partially regulated. FSSAI Regulations 2011 restrict some claims but enforcement is weak.',
+    avoid:'Read per 100g figures. Check total sugar. Look up Nutri-Score on our platform.',
+  },
+  {
+    id:'servingsize', icon:ShoppingCart, color:'text-orange-600', bg:'bg-orange-50', border:'border-orange-200',
+    title:'Serving Size Manipulation', subtitle:'Making calories look smaller by splitting into unrealistic servings', severity:'Medium',
+    image:'https://images.unsplash.com/photo-1567306226416-28f0efdc88ce?w=600&h=340&fit=crop&q=80',
+    description:'Nutritional information is shown per "serving" which companies define themselves. A 750ml cola bottle shows nutrition "per 250ml". A single-person crisp packet becomes "2 servings".',
+    examples:['Pepsi 750ml: nutrition shown per 250ml — nobody drinks 250ml','Ben & Jerry\'s: serving = ½ cup — nobody eats ½ cup','Protein powder: serving = 1 scoop but dose = 3 scoops','Chips 150g pack: declared as 3 servings','Energy drink 355ml can: "2 servings per can"'],
+    howToSpot:'Always convert to per 100g or per 100ml. These are mandatory on Indian packs and are standardised for fair comparison.',
+    impact:'Consumers underestimate calorie intake by 50–100% when reading per-serving data.',
+    legal:'FSSAI requires per 100g data alongside per-serving. Many companies bury it in small print.',
+    avoid:'Only use per 100g / per 100ml figures. Our product analyzer automatically converts everything.',
+  },
+];
+
+const LABEL_STEPS = [
+  {step:1,icon:'❌',title:'Ignore the front completely',tip:'All front-of-pack claims are marketing, not science.'},
+  {step:2,icon:'📋',title:'Find the ingredients list',tip:'First ingredient = most abundant. If sugar is in top 3, it\'s a sugar product.'},
+  {step:3,icon:'🍬',title:'Count sugar aliases',tip:'Look for: dextrose, fructose, maltose, syrup, concentrate, malt, cane juice. Add them all up.'},
+  {step:4,icon:'📊',title:'Check nutrition per 100g',tip:'Ignore per-serving. Sugar >10g/100g = high. Sodium >600mg/100g = high. Fat >20g/100g = high.'},
+  {step:5,icon:'🔢',title:'Identify E-numbers',tip:'Every "E" followed by a number — search it. Use our Ingredient Explorer for instant risk rating.'},
+  {step:6,icon:'⚠️',title:'Check allergen declaration',tip:'Mandatory in India: milk, eggs, fish, nuts, wheat, soy. "May contain" = shared facility.'},
+  {step:7,icon:'🏛️',title:'Read the FSSAI licence number',tip:'14-digit FSSAI number is mandatory. Missing = illegal product. Verify at fssai.gov.in.'},
+];
+
+const AWARENESS_BOT_CONFIG = {
+  botName: 'Food Awareness AI',
+  subtitle: 'Decode any label claim, tactic, or ingredient',
+  systemPrompt: `You are a food industry watchdog and consumer rights expert. Help people understand: corporate food marketing manipulation (shrinkflation, health-washing, nature-washing, serving size tricks), how to read food labels correctly, and what ingredients actually are. Be direct, factual, use specific examples, bullet points, and clear structure.`,
+  welcomeMessage: `👋 Hi! I'm your Food Awareness AI. I can help you:
+
+- **Identify corporate manipulation tactics** on your products
+- **Decode suspicious label claims**
+- **Guide you through reading** any food label correctly
+
+**What would you like to expose today?**`,
+  quickReplies: [
+    'How do I spot shrinkflation?',
+    'What does "no added sugar" really mean?',
+    'How do I read an Indian food label?',
+  ],
+  accentColor: 'text-violet-600',
+  accentBg: 'bg-violet-50',
+  iconGradient: 'bg-gradient-to-br from-violet-500 to-purple-600',
+  botIconColor: 'text-violet-600',
+  botIconBg: 'bg-violet-100',
+};
+
+// ========== DISEASE DATA ==========
+const DISEASES = [
+  {
+    id:'salmonellosis', name:'Salmonellosis', pathogen:'Salmonella bacteria', severity:'high', emoji:'🥚',
+    color:'text-red-700', bg:'bg-red-50', border:'border-red-200',
+    foods:['Raw/undercooked eggs','Undercooked poultry','Unpasteurised milk','Raw sprouts','Contaminated water'],
+    onset:'6–72 hours', duration:'4–7 days',
+    symptoms:['Diarrhoea (may be bloody)','Fever (38–40°C)','Stomach cramps and nausea','Vomiting','Headache and muscle pain'],
+    prevention:['Cook poultry to 74°C internal temperature','Refrigerate within 2 hours of cooking','Wash hands after handling raw eggs','Avoid cross-contamination with raw poultry','Never eat raw batter or dough'],
+    treatment:'Usually self-limiting. Oral rehydration. Antibiotics only for severe cases. Seek hospital if fever >39°C or bloody diarrhoea.',
+    atRisk:'Children under 5, elderly, pregnant women, immunocompromised individuals',
+    india:'One of the most common food poisoning causes in India. Estimated 2–4 million cases annually. Peaks in monsoon.',
+  },
+  {
+    id:'ecoli', name:'E. coli Infection', pathogen:'Escherichia coli O157:H7', severity:'critical', emoji:'🥩',
+    color:'text-rose-700', bg:'bg-rose-50', border:'border-rose-200',
+    foods:['Undercooked ground beef','Raw leafy greens','Unpasteurised juice/milk','Contaminated water','Unwashed fruits/vegetables'],
+    onset:'1–10 days (usually 3–4)', duration:'5–10 days',
+    symptoms:['Severe stomach cramps','Watery then bloody diarrhoea','Vomiting','Low or no fever','HUS (kidney failure) in severe cases'],
+    prevention:['Cook beef to 71°C — no pink inside','Wash all produce thoroughly','Drink only pasteurised juice and milk','Wash hands after toilet','Separate raw meat from other foods'],
+    treatment:'AVOID antibiotics (can worsen HUS). Oral rehydration only. Emergency care if bloody diarrhoea, no urination, or extreme paleness.',
+    atRisk:'Children under 5 at highest risk of HUS — a potentially fatal kidney complication',
+    india:'Contaminated water is the primary route. Responsible for significant child mortality.',
+  },
+  {
+    id:'typhoid', name:'Typhoid Fever', pathogen:'Salmonella Typhi', severity:'critical', emoji:'💧',
+    color:'text-orange-700', bg:'bg-orange-50', border:'border-orange-200',
+    foods:['Contaminated water','Street food','Unwashed raw fruits/vegetables','Food handled by infected persons','Ice made from contaminated water'],
+    onset:'1–3 weeks', duration:'2–4 weeks without treatment',
+    symptoms:['Gradually increasing fever (can reach 40°C)','Headache and fatigue','Abdominal pain and constipation (early) then diarrhoea','Rose-coloured spots on chest','Enlarged spleen/liver'],
+    prevention:['Drink only boiled or bottled water','Eat only cooked food, freshly served','Avoid street food in high-risk areas','Typhoid vaccine (recommended in India)','Strict hand hygiene'],
+    treatment:'Antibiotics (azithromycin or cefixime). Must complete full course. Hospitalisation for severe cases. Paracetamol for fever.',
+    atRisk:'Travellers, children, and adults in areas without clean water infrastructure',
+    india:'India has the highest typhoid burden globally — approximately 4.5 million cases annually. Highest in UP, Bihar, and West Bengal.',
+  },
+  {
+    id:'hepatitisA', name:'Hepatitis A', pathogen:'Hepatitis A Virus (HAV)', severity:'high', emoji:'🫙',
+    color:'text-yellow-700', bg:'bg-yellow-50', border:'border-yellow-200',
+    foods:['Contaminated water or ice','Raw shellfish (oysters, clams)','Salads and sandwiches handled by infected persons','Unpeeled fruits and vegetables','Undercooked food'],
+    onset:'2–6 weeks', duration:'2 weeks to 3 months',
+    symptoms:['Jaundice (yellowing of skin and eyes)','Fatigue and weakness','Nausea and vomiting','Abdominal pain (right side, near liver)','Dark urine and pale stools'],
+    prevention:['Hepatitis A vaccine (2 doses, lifelong protection)','Wash hands thoroughly especially after toilet','Boil water if in doubt','Avoid raw shellfish','Peel all fruits yourself'],
+    treatment:'No specific treatment. Rest, fluids, and avoid alcohol. Liver function tests needed. Recovery usually complete. No chronic infection.',
+    atRisk:'Travellers, children in low-sanitation areas, people with chronic liver disease',
+    india:'India is hyper-endemic for Hepatitis A. Outbreaks common in schools. Vaccine not yet in national immunisation schedule but recommended.',
+  },
+];
+
+const PREVENTION_TIPS = [
+  {icon:'🧼', title:'Clean', desc:'Wash hands for 20 seconds. Wash all surfaces, utensils, and produce before use.'},
+  {icon:'🔀', title:'Separate', desc:'Use separate cutting boards for raw meat and vegetables. Never cross-contaminate.'},
+  {icon:'🌡️', title:'Cook', desc:'Cook to safe internal temperatures: Poultry 74°C, Beef/Pork 71°C, Fish 63°C.'},
+  {icon:'❄️', title:'Chill', desc:'Refrigerate perishables within 2 hours. Keep fridge at 4°C. Freezer at -18°C.'},
+];
+
+const DISEASE_BOT_CONFIG = {
+  botName: 'Symptom Checker AI',
+  subtitle: 'Describe symptoms to identify possible foodborne illness',
+  systemPrompt: `You are a food safety expert. Help identify possible foodborne illnesses based on symptoms. Ask about onset timing, symptoms, foods eaten in last 1–7 days. Assess severity and give clear emergency signs.`,
+  welcomeMessage: `🩺 I'm your Foodborne Disease AI. I can help you identify causes based on your symptoms, foods eaten, and timing.
+
+⚠️ *This is for educational guidance only, not a medical diagnosis. For severe symptoms, go to a hospital.*
+
+**Describe your symptoms and what you ate recently:**`,
+  quickReplies: [
+    'I have diarrhoea and vomiting since morning',
+    'I have fever and stomach pain after eating street food',
+    'My child has watery diarrhoea — is it serious?',
+  ],
+  accentColor: 'text-red-600',
+  accentBg: 'bg-red-50',
+  iconGradient: 'bg-gradient-to-br from-red-500 to-rose-600',
+  botIconColor: 'text-red-600',
+  botIconBg: 'bg-red-100',
+};
+
+function TacticCard({t}:{t:typeof TACTICS[0]}){
   const[open,setOpen]=useState(false);
-  const mealTimes=[
-    {key:'earlyMorn',label:'Early Morning',icon:'🌅'},
-    {key:'breakfast',label:'Breakfast',icon:'☀️'},
-    {key:'midMorn',label:'Mid-Morning',icon:'🍎'},
-    {key:'lunch',label:'Lunch',icon:'🍽️'},
-    {key:'preWorkout',label:'Pre-Workout',icon:'⚡'},
-    {key:'postWorkout',label:'Post-Workout',icon:'💪'},
-    {key:'evening',label:'Evening Snack',icon:'🌆'},
-    {key:'dinner',label:'Dinner',icon:'🌙'},
-    {key:'bedtime',label:'Bedtime',icon:'🌛'},
-  ].filter(m=>plan.plan[m.key as keyof typeof plan.plan]);
+  const Icon=t.icon;
   return(
-    <div className={cn('rounded-2xl border overflow-hidden transition-all',plan.border,open&&'shadow-md')}>
-      <button onClick={()=>setOpen(o=>!o)} className={cn('w-full flex items-start gap-4 p-5 text-left transition-colors hover:bg-foreground/3',plan.bg)}>
-        <span className="text-3xl shrink-0">{plan.emoji}</span>
+    <div className={cn('rounded-2xl border overflow-hidden transition-all',t.border,open&&'shadow-lg')}>
+      <button onClick={()=>setOpen(o=>!o)} className={cn('w-full flex items-start gap-4 p-5 text-left transition-colors hover:brightness-[0.97]',t.bg)}>
+        <div className={cn('w-12 h-12 rounded-xl flex items-center justify-center shrink-0 mt-0.5 shadow-sm',t.bg.replace('-50','-100'))}>
+          <Icon className={cn('h-6 w-6',t.color)}/>
+        </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h3 className={cn('font-display font-700 text-foreground mb-0.5',open&&plan.color)}>{plan.name}</h3>
-              <p className="text-xs text-muted-foreground italic mb-2">{plan.tagline}</p>
-              <div className="flex flex-wrap gap-1">
-                {plan.bestFor.map(b=><span key={b} className={cn('text-[10px] font-medium px-2 py-0.5 rounded-lg border',plan.bg,plan.border,plan.color)}>{b}</span>)}
+              <h3 className={cn('font-display font-700 text-lg text-foreground',open&&t.color)}>{t.title}</h3>
+              <p className="text-sm text-muted-foreground">{t.subtitle}</p>
+            </div>
+            <ChevronDown className={cn('h-4 w-4 shrink-0 transition-transform',open&&'rotate-180')}/>
+          </div>
+        </div>
+      </button>
+      {open&&(
+        <div className="px-5 pb-6 pt-4 border-t border-border/40 bg-card space-y-5">
+          <p className="text-sm text-muted-foreground">{t.description}</p>
+          <div>
+            <h4 className="text-xs font-700 uppercase tracking-widest text-muted-foreground mb-3">Real examples in India</h4>
+            <ul className="space-y-2">{t.examples.map((e,i)=><li key={i} className="flex items-start gap-2.5 text-sm"><XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5"/><span>{e}</span></li>)}</ul>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="p-4 rounded-xl bg-amber-50 border border-amber-200"><p className="text-xs font-700 text-amber-800 mb-1.5 flex items-center gap-1.5"><Eye className="h-3.5 w-3.5"/>How to spot it</p><p className="text-xs text-amber-700">{t.howToSpot}</p></div>
+            <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200"><p className="text-xs font-700 text-emerald-800 mb-1.5 flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5"/>How to avoid it</p><p className="text-xs text-emerald-700">{t.avoid}</p></div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DiseaseCard({d}:{d:typeof DISEASES[0]}){
+  const[open,setOpen]=useState(false);
+  return(
+    <div className={cn('rounded-2xl border overflow-hidden transition-all',d.border,open&&'shadow-md')}>
+      <button onClick={()=>setOpen(o=>!o)} className={cn('w-full flex items-start gap-4 p-5 text-left transition-colors hover:bg-foreground/3',d.bg)}>
+        <span className="text-3xl shrink-0">{d.emoji}</span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className={cn('font-display font-700 text-foreground',open&&d.color)}>{d.name}</h3>
+              <p className="text-xs text-muted-foreground">By: {d.pathogen}</p>
+              <div className="flex gap-3 mt-1">
+                <span className="text-[11px] text-muted-foreground flex items-center gap-1"><Clock className="h-3 w-3"/>Onset: {d.onset}</span>
+                <span className="text-[11px] text-muted-foreground flex items-center gap-1"><Activity className="h-3 w-3"/>Duration: {d.duration}</span>
               </div>
             </div>
             {open?<ChevronUp className="h-4 w-4 text-muted-foreground shrink-0 mt-1"/>:<ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 mt-1"/>}
@@ -211,43 +396,66 @@ function DietPlanCard({plan}:{plan:typeof DIET_PLANS[0]}){
         </div>
       </button>
       {open&&(
-        <div className="px-5 pb-6 pt-4 border-t border-border/40 bg-card space-y-6">
+        <div className="px-5 pb-6 pt-4 border-t border-border/40 bg-card grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div>
+            <h4 className="text-xs font-700 uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-1.5"><Package className="h-3.5 w-3.5"/>Common food sources</h4>
+            <ul className="space-y-1">{d.foods.map((f,i)=><li key={i} className="flex items-start gap-2 text-sm"><XCircle className="h-3.5 w-3.5 text-red-400 shrink-0 mt-0.5"/><span className="text-muted-foreground">{f}</span></li>)}</ul>
+          </div>
+          <div>
+            <h4 className="text-xs font-700 uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-1.5"><AlertTriangle className="h-3.5 w-3.5"/>Symptoms</h4>
+            <ul className="space-y-1">{d.symptoms.map((s,i)=><li key={i} className="flex items-start gap-2 text-sm"><AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5"/><span className="text-muted-foreground">{s}</span></li>)}</ul>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// DietPlanCard component
+function DietPlanCard({plan}: {plan: any}) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className={cn('rounded-2xl border p-5 transition-all hover:shadow-md', plan.bg, plan.border)}>
+      <div className="flex items-start justify-between gap-4 cursor-pointer" onClick={() => setExpanded(!expanded)}>
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-2xl">{plan.emoji}</span>
+            <h3 className={cn('font-display font-800 text-lg', plan.color)}>{plan.name}</h3>
+          </div>
+          <p className="text-xs text-muted-foreground mb-2">{plan.tagline}</p>
           <p className="text-sm text-muted-foreground">{plan.desc}</p>
-          {/* Nutrition overview */}
+          <div className="flex flex-wrap gap-1.5 mt-3">
+            {plan.bestFor.map((b: string, i: number) => (
+              <span key={i} className="px-2 py-0.5 rounded-full bg-foreground/5 text-xs font-medium text-muted-foreground">{b}</span>
+            ))}
+          </div>
+        </div>
+        <ChevronDown className={cn('h-4 w-4 text-muted-foreground shrink-0 transition-transform', expanded && 'rotate-180')} />
+      </div>
+      
+      {expanded && (
+        <div className="mt-5 space-y-4 pt-5 border-t border-foreground/10">
           <div>
-            <h4 className="text-xs font-700 uppercase tracking-widest text-muted-foreground mb-3">Daily Nutrition Profile</h4>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {Object.entries(plan.nutrients).map(([k,v])=>(
-                <div key={k} className={cn('p-3 rounded-xl border text-center',plan.bg,plan.border)}>
-                  <p className={cn('font-display font-800 text-lg',plan.color)}>{v}</p>
-                  <p className="text-[11px] text-muted-foreground capitalize">{k==='calories'?'kcal':k==='fat'?'g fat':k==='carbs'?'g carbs':k==='protein'?'g protein':k==='fibre'?'g fibre':'g sugar'}</p>
+            <h4 className="text-xs font-700 uppercase tracking-widest text-muted-foreground mb-2">Sample Daily Plan</h4>
+            <div className="space-y-1 text-sm text-muted-foreground">
+              {Object.entries(plan.plan).map(([time, meal]) => (
+                <div key={time} className="flex gap-2">
+                  <span className="font-medium capitalize text-foreground">{time.replace(/([A-Z])/g, ' $1').trim()}:</span>
+                  <span>{meal as string}</span>
                 </div>
               ))}
             </div>
           </div>
-          {/* Full day meal plan */}
           <div>
-            <h4 className="text-xs font-700 uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-2"><Clock className="h-3.5 w-3.5"/>Full Day Meal Plan</h4>
-            <div className="space-y-2">
-              {mealTimes.map(({key,label,icon})=>(
-                <div key={key} className="flex items-start gap-3 p-3 rounded-xl bg-card border border-border">
-                  <span className="text-lg shrink-0">{icon}</span>
-                  <div>
-                    <p className="text-[11px] font-700 uppercase tracking-wide text-muted-foreground">{label}</p>
-                    <p className="text-sm text-foreground">{plan.plan[key as keyof typeof plan.plan]}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <h4 className="text-xs font-700 uppercase tracking-widest text-muted-foreground mb-2">Key Nutrients</h4>
+            <p className="text-sm text-muted-foreground">{plan.keyNutrients}</p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200">
-              <p className="text-xs font-700 text-emerald-800 mb-2 flex items-center gap-1.5"><Star className="h-3.5 w-3.5"/>Key nutrients</p>
-              <p className="text-xs text-emerald-700">{plan.keyNutrients}</p>
-            </div>
-            <div className="p-4 rounded-xl bg-red-50 border border-red-200">
-              <p className="text-xs font-700 text-red-700 mb-2">🚫 Foods to avoid</p>
-              <ul className="space-y-0.5">{plan.avoid.map(a=><li key={a} className="text-xs text-red-600 flex items-center gap-1.5"><span>·</span>{a}</li>)}</ul>
+          <div>
+            <h4 className="text-xs font-700 uppercase tracking-widest text-muted-foreground mb-2">Foods to Avoid</h4>
+            <div className="flex flex-wrap gap-1.5">
+              {plan.avoid.map((a: string, i: number) => (
+                <span key={i} className="px-2 py-1 rounded-lg bg-red-50 text-red-700 text-xs font-medium border border-red-200">{a}</span>
+              ))}
             </div>
           </div>
         </div>
@@ -258,7 +466,15 @@ function DietPlanCard({plan}:{plan:typeof DIET_PLANS[0]}){
 
 export default function NutritionPage(){
   const[person,setPerson]=useState<'man'|'woman'|'child'>('woman');
+  const[activeTab,setActiveTab]=useState<'nutrition'|'awareness'|'diseases'>('nutrition');
   const[activeNutrient,setActiveNutrient]=useState<string|null>(null);
+
+  const tabs=[
+    {id:'nutrition', label:'🥗 Nutrition & Diet', icon:Apple},
+    {id:'awareness', label:'👁️ Food Awareness', icon:Eye},
+    {id:'diseases', label:'🩺 Foodborne Diseases', icon:AlertTriangle},
+  ];
+
   return(
     <div className="page-wrapper pt-20">
       <section className="relative gradient-hero border-b border-border/60 overflow-hidden">
@@ -268,148 +484,171 @@ export default function NutritionPage(){
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
             <div>
               <div className="inline-flex items-center gap-2 mb-5 px-3.5 py-2 rounded-full border border-emerald-300/60 bg-emerald-50/80 text-emerald-700 text-xs font-semibold">
-                <Heart className="h-3.5 w-3.5"/>Diet & Nutrition
+                <Heart className="h-3.5 w-3.5"/>Complete Nutrition Module
               </div>
               <h1 className="font-display text-5xl sm:text-6xl font-800 text-foreground mb-4 leading-[1.1]">
-                Eat smarter.
-                <span className="block bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">Live better.</span>
+                Nutrition,
+                <span className="block bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">Awareness & Safety</span>
               </h1>
               <p className="text-lg text-muted-foreground leading-relaxed mb-8 max-w-xl">
-                Daily nutrient intake guides, 6 Indian diet plans, meal timing charts, and an AI nutrition assistant that creates personalised plans based on your age, health goals, and Indian food preferences.
+                Complete guide to eating smart: personalized nutrition plans, food awareness tactics, and foodborne disease prevention. Everything you need for better health.
               </p>
-              <div className="flex flex-wrap gap-4">
-                {[{icon:BarChart3,label:'Daily intake charts'},{icon:Apple,label:'6 Indian diet plans'},{icon:Clock,label:'Meal timing guide'},{icon:Bot,label:'AI nutrition planner'}].map(({icon:Icon,label})=>(
-                  <span key={label} className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-card border border-border text-sm font-medium shadow-sm">
-                    <Icon className="h-4 w-4 text-emerald-600"/>{label}
-                  </span>
-                ))}
-              </div>
             </div>
-            {/* Hero Image */}
             <div className="hidden lg:block relative pb-6 pl-6">
               <div className="relative rounded-3xl overflow-hidden shadow-2xl border border-border/40">
                 <img
                   src="https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=700&h=500&fit=crop&q=80"
-                  alt="Healthy nutritious Indian food"
+                  alt="Healthy nutrition"
                   className="w-full h-[400px] object-cover"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
-                <div className="absolute top-3 left-3 px-2.5 py-1.5 rounded-xl bg-card/95 border border-border shadow-lg flex items-center gap-2 z-10">
-                  <div className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
-                    <Apple className="h-3.5 w-3.5 text-emerald-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-foreground leading-tight">6 Diet Plans</p>
-                    <p className="text-[10px] text-muted-foreground leading-tight">Indian food focused</p>
-                  </div>
-                </div>
-                <div className="absolute bottom-5 left-5 right-5">
-                  <div className="flex gap-3 flex-wrap">
-                    <div className="px-3 py-2 rounded-xl bg-white/20 backdrop-blur-md border border-white/30 text-white text-xs font-semibold flex items-center gap-1.5">
-                      <Heart className="h-3.5 w-3.5" /> Personalised plans
-                    </div>
-                    <div className="px-3 py-2 rounded-xl bg-white/20 backdrop-blur-md border border-white/30 text-white text-xs font-semibold flex items-center gap-1.5">
-                      <BarChart3 className="h-3.5 w-3.5" /> ICMR guidelines
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
           </div>
         </div>
       </section>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12 space-y-14">
-        {/* Floating AI Nutrition Assistant */}
-        <FloatingChatBot {...NUTRITION_BOT_CONFIG} />
 
-        {/* Daily Intake Guide */}
-        <div>
-          <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
+        {/* Tab Navigation */}
+        <div className="flex gap-2 mb-12 flex-wrap">
+          {tabs.map(tab=>(
+            <button key={tab.id} onClick={()=>setActiveTab(tab.id as any)} className={cn('px-4 py-2.5 rounded-xl font-semibold text-sm transition-all border',
+              activeTab===tab.id?'bg-primary text-white border-primary':'bg-card border-border text-foreground hover:border-primary/40')}>
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* NUTRITION TAB */}
+        {activeTab==='nutrition'&&(
+          <div className="space-y-14">
+            <FloatingChatBot {...NUTRITION_BOT_CONFIG}/>
             <div>
-              <h2 className="font-display text-2xl font-800 text-foreground">Daily Nutrient Requirements</h2>
-              <p className="text-sm text-muted-foreground mt-1">Based on ICMR dietary reference values for Indians. Tap any nutrient for details.</p>
-            </div>
-            <div className="flex gap-2 p-1.5 bg-muted/60 rounded-2xl border border-border/60">
-              {([['woman','👩 Woman'],['man','👨 Man'],['child','👧 Child']] as const).map(([k,label])=>(
-                <button key={k} onClick={()=>setPerson(k)} className={cn('px-4 py-2 rounded-xl text-sm font-medium transition-all',person===k?'bg-card shadow text-foreground border border-border/60':'text-muted-foreground')}>
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {DAILY_INTAKE.map(n=>{
-              const val=n[person];
-              const pct=Math.min((val/n.man)*100,100);
-              return(
-                <button key={n.nutrient} onClick={()=>setActiveNutrient(a=>a===n.nutrient?null:n.nutrient)}
-                  className={cn('text-left p-4 rounded-2xl border transition-all',
-                    activeNutrient===n.nutrient?'border-primary/40 bg-primary/5 shadow-glow':'border-border bg-card hover:border-primary/30 hover:shadow-md')}>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xl">{n.icon}</span>
-                    <span className={cn('font-display font-800 text-lg',activeNutrient===n.nutrient?'text-primary':'text-foreground')}>
-                      {val.toLocaleString()}<span className="text-xs font-medium text-muted-foreground ml-0.5">{n.unit}</span>
-                    </span>
-                  </div>
-                  <p className="font-display font-700 text-sm text-foreground mb-2">{n.nutrient}</p>
-                  <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                    <div className={cn('h-full rounded-full transition-all',n.color)} style={{width:`${pct}%`}}/>
-                  </div>
-                  {activeNutrient===n.nutrient&&(
-                    <p className="text-xs text-muted-foreground mt-2 leading-relaxed">{n.tip}</p>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Meal Timing */}
-        <div>
-          <h2 className="font-display text-2xl font-800 text-foreground mb-2">Optimal Meal Timing</h2>
-          <p className="text-sm text-muted-foreground mb-6">When you eat is as important as what you eat. Here's the ideal Indian meal schedule.</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {MEAL_TIMING.map(({time,icon:Icon,label,tip})=>(
-              <div key={label} className="p-4 rounded-2xl bg-card border border-border hover:border-primary/30 hover:shadow-md transition-all">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-8 h-8 rounded-xl gradient-primary flex items-center justify-center shadow-glow">
-                    <Icon className="h-4 w-4 text-white"/>
-                  </div>
-                  <div>
-                    <p className="font-700 text-foreground text-sm">{label}</p>
-                    <p className="text-[11px] text-muted-foreground">{time}</p>
-                  </div>
+              <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
+                <div>
+                  <h2 className="font-display text-2xl font-800 text-foreground">Daily Nutrient Requirements</h2>
+                  <p className="text-sm text-muted-foreground mt-1">Based on ICMR dietary reference values</p>
                 </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">{tip}</p>
+                <div className="flex gap-2 p-1.5 bg-muted/60 rounded-2xl border border-border/60">
+                  {([['woman','👩 Woman'],['man','👨 Man'],['child','👧 Child']] as const).map(([k,label])=>(
+                    <button key={k} onClick={()=>setPerson(k)} className={cn('px-4 py-2 rounded-xl text-sm font-medium transition-all',person===k?'bg-card shadow text-foreground border border-border/60':'text-muted-foreground')}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Diet Plans */}
-        <div>
-          <h2 className="font-display text-2xl font-800 text-foreground mb-2">6 Indian Diet Plans</h2>
-          <p className="text-sm text-muted-foreground mb-6">Click any plan to see the full day-by-day meal schedule, nutrition breakdown, and food to avoid.</p>
-          <div className="space-y-3">{DIET_PLANS.map(p=><DietPlanCard key={p.id} plan={p}/>)}</div>
-        </div>
-
-        {/* India nutrition facts */}
-        <div className="p-6 rounded-2xl bg-foreground text-background">
-          <h2 className="font-display text-xl font-800 mb-4">India's Nutrition Reality</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {[
-              {stat:'50%+',label:'Indian women anaemic',color:'text-rose-400'},
-              {stat:'70%+',label:'Indians Vitamin D deficient',color:'text-yellow-400'},
-              {stat:'77M',label:'Indians with diabetes (2023)',color:'text-red-400'},
-              {stat:'15g',label:'Average daily fibre intake (target: 25–38g)',color:'text-amber-400'},
-            ].map(({stat,label,color})=>(
-              <div key={label} className="text-center p-4 rounded-xl bg-background/8 border border-background/15">
-                <p className={cn('font-display text-2xl font-800 mb-1',color)}>{stat}</p>
-                <p className="text-xs text-background/70 leading-relaxed">{label}</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {DAILY_INTAKE.map(n=>{
+                  const val=n[person];
+                  return(
+                    <button key={n.nutrient} onClick={()=>setActiveNutrient(a=>a===n.nutrient?null:n.nutrient)}
+                      className={cn('text-left p-4 rounded-2xl border transition-all',
+                        activeNutrient===n.nutrient?'border-primary/40 bg-primary/5 shadow-glow':'border-border bg-card hover:border-primary/30 hover:shadow-md')}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xl">{n.icon}</span>
+                        <span className={cn('font-display font-800 text-lg',activeNutrient===n.nutrient?'text-primary':'text-foreground')}>
+                          {val.toLocaleString()}<span className="text-xs font-medium text-muted-foreground ml-0.5">{n.unit}</span>
+                        </span>
+                      </div>
+                      <p className="font-display font-700 text-sm text-foreground mb-2">{n.nutrient}</p>
+                      {activeNutrient===n.nutrient&&(
+                        <p className="text-xs text-muted-foreground mt-2 leading-relaxed">{n.tip}</p>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
-            ))}
+            </div>
+
+            <div>
+              <h2 className="font-display text-2xl font-800 text-foreground mb-6">6 Indian Diet Plans</h2>
+              <div className="space-y-3">{DIET_PLANS.map(p=><DietPlanCard key={p.id} plan={p}/>)}</div>
+            </div>
+
+            <div>
+              <h2 className="font-display text-2xl font-800 text-foreground mb-2">Optimal Meal Timing</h2>
+              <p className="text-sm text-muted-foreground mb-6">When you eat is as important as what you eat.</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {MEAL_TIMING.map(({time,icon:Icon,label,tip})=>(
+                  <div key={label} className="p-4 rounded-2xl bg-card border border-border hover:border-primary/30 hover:shadow-md transition-all">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Icon className="h-4 w-4 text-emerald-600"/>
+                      <div>
+                        <p className="font-700 text-foreground text-sm">{label}</p>
+                        <p className="text-[11px] text-muted-foreground">{time}</p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">{tip}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* AWARENESS TAB */}
+        {activeTab==='awareness'&&(
+          <div className="space-y-12">
+            <FloatingChatBot {...AWARENESS_BOT_CONFIG}/>
+            
+            <div>
+              <h2 className="font-display text-2xl font-800 text-foreground mb-6">How to Read Any Food Label</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {LABEL_STEPS.map(({step,title,icon,tip})=>(
+                  <div key={step} className="p-4 rounded-2xl bg-card border border-border hover:border-primary/30 hover:shadow-md transition-all">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center shadow-glow"><span className="text-white text-[11px] font-800">{step}</span></div>
+                      <span className="text-2xl">{icon}</span>
+                    </div>
+                    <h3 className="font-display font-700 text-foreground text-sm mb-1">{title}</h3>
+                    <p className="text-xs text-muted-foreground leading-relaxed">{tip}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <h2 className="font-display text-2xl font-800 text-foreground mb-6">Corporate Food Tactics — Exposed</h2>
+              <div className="space-y-3">{TACTICS.map(t=><TacticCard key={t.id} t={t}/>)}</div>
+            </div>
+          </div>
+        )}
+
+        {/* DISEASE TAB */}
+        {activeTab==='diseases'&&(
+          <div className="space-y-12">
+            <div className="p-5 rounded-2xl bg-red-600 text-white flex items-center gap-4">
+              <AlertTriangle className="h-8 w-8 shrink-0"/>
+              <div>
+                <p className="font-700 text-lg">When to seek emergency care immediately</p>
+                <p className="text-white/85 text-sm mt-1">Bloody diarrhoea · Fever above 39°C · Unable to keep fluids down · Stiff neck or confusion · Jaundice</p>
+              </div>
+              <div className="shrink-0 text-right ml-auto">
+                <p className="text-[11px] text-white/70">Emergency</p>
+                <p className="font-800 text-xl">112</p>
+              </div>
+            </div>
+
+            <FloatingChatBot {...DISEASE_BOT_CONFIG}/>
+
+            <div>
+              <h2 className="font-display text-2xl font-800 text-foreground mb-6">4 Core Prevention Principles</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {PREVENTION_TIPS.map(({icon,title,desc})=>(
+                  <div key={title} className="p-5 rounded-2xl bg-card border border-border text-center hover:border-primary/30 hover:shadow-md transition-all">
+                    <div className="text-4xl mb-3">{icon}</div>
+                    <h3 className="font-display font-700 text-foreground mb-2">{title}</h3>
+                    <p className="text-xs text-muted-foreground leading-relaxed">{desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <h2 className="font-display text-2xl font-800 text-foreground mb-6">Foodborne Disease Database</h2>
+              <div className="space-y-3">{DISEASES.map(d=><DiseaseCard key={d.id} d={d}/>)}</div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

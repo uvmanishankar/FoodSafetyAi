@@ -253,9 +253,9 @@ What would you like to know first?`,
       }
     } catch (err: any) {
       let errorContent: string;
-      if (err?.name === 'GeminiQuotaError' && err.isQuotaExhausted) {
-        errorContent = '⚠️ The AI assistant is temporarily unavailable — the daily API quota has been reached. Please try again later (resets within 24 hours). In the meantime, you can follow the step-by-step instructions shown above the chat.';
-      } else if (err?.name === 'GeminiQuotaError') {
+      if (err?.name === 'MistralQuotaError' && err.isQuotaExhausted) {
+        errorContent = '⚠️ The AI assistant is temporarily unavailable — the API quota has been reached. Please try again later. In the meantime, you can follow the step-by-step instructions shown above the chat.';
+      } else if (err?.name === 'MistralQuotaError') {
         errorContent = '⏳ Too many requests — please wait a few seconds and try again.';
       } else {
         errorContent = "🔌 I'm having trouble connecting right now. Please check your internet connection and try again. In the meantime, you can follow the step-by-step instructions shown above the chat.";

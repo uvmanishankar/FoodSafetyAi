@@ -1,9 +1,10 @@
 import { useState, useRef, useCallback } from 'react';
 import { ScanLine, Search, Camera, Loader2, AlertCircle, CheckCircle,
          XCircle, Info, Package, Barcode, Upload, ArrowLeft, ChevronDown, ChevronUp,
-         Leaf, Star } from 'lucide-react';
+         Leaf, Star, Zap } from 'lucide-react';
 import { createWorker } from 'tesseract.js';
 import { cn } from '@/lib/utils';
+import { callGemini } from '@/lib/gemini';
 import FloatingChatBot from '@/components/FloatingChatBot';
 
 const ANALYZE_BOT_CONFIG = {
@@ -37,6 +38,8 @@ interface AnalysisResult {
   image?: string;
   rawIngredientsText?: string;
   quantity?: string;
+  aiSummary?: string;
+  aiRecommendation?: 'safe' | 'caution' | 'avoid';
 }
 
 interface OFFProduct {
@@ -127,6 +130,7 @@ export default function AnalyzePage() {
   const [barcodeQ, setBarcodeQ] = useState('');
   const [nameQ, setNameQ] = useState('');
   const [loading, setLoading] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
   const [ocrPct, setOcrPct] = useState(0);
   const [ocrMsg, setOcrMsg] = useState('');
   const [result, setResult] = useState<AnalysisResult | null>(null);
@@ -140,9 +144,51 @@ export default function AnalyzePage() {
 
   const reset = () => { setResult(null); setSearchResults([]); setError(null); setOcrPct(0); setOcrMsg(''); };
 
+  const getAISummary = async (analysisResult: AnalysisResult) => {
+    try {
+      setAiLoading(true);
+      const prompt = `You are a food safety expert. Analyze this food product and provide a brief recommendation on whether it's safe to eat.
+
+Product: ${analysisResult.productName}
+${analysisResult.brand ? `Brand: ${analysisResult.brand}` : ''}
+${analysisResult.nutriScore ? `Nutri-Score: ${analysisResult.nutriScore}` : ''}
+${analysisResult.novaGroup ? `NOVA Group: ${analysisResult.novaGroup}` : ''}
+Ingredients Count: ${analysisResult.ingredients.length}
+Risky Ingredients: ${analysisResult.riskyIngredients.length > 0 ? analysisResult.riskyIngredients.join(', ') : 'None detected'}
+${analysisResult.allergens ? `Allergens: ${analysisResult.allergens}` : ''}
+${analysisResult.additives?.length ? `Additives: ${analysisResult.additives.join(', ')}` : ''}
+
+Based on this analysis, provide:
+1. A brief summary (2-3 sentences) of the product's safety profile
+2. Key concerns (if any)
+3. A recommendation: SAFE, CAUTION, or AVOID
+4. Who should be careful (if applicable)
+
+Format your response as:
+SUMMARY: [your summary here]
+CONCERNS: [concerns or "None"]
+RECOMMENDATION: [SAFE/CAUTION/AVOID]
+WHO_SHOULD_CARE: [target groups or "General population"]`;
+
+      const summary = await callGemini('', [], prompt);
+      
+      // Parse the recommendation
+      let recommendation: 'safe' | 'caution' | 'avoid' = 'caution';
+      if (summary.includes('RECOMMENDATION: SAFE')) recommendation = 'safe';
+      else if (summary.includes('RECOMMENDATION: AVOID')) recommendation = 'avoid';
+
+      setResult(prev => prev ? { ...prev, aiSummary: summary, aiRecommendation: recommendation } : null);
+    } catch (err) {
+      console.error('AI analysis error:', err);
+      setError('Failed to get AI analysis. Please try again.');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   const buildResult = (p: OFFProduct) => {
     const { risky, safe, all } = analyzeIngredients(p.ingredients_text || '');
-    setResult({
+    const newResult: AnalysisResult = {
       productName: p.product_name || 'Unknown Product', brand: p.brands,
       ingredients: all, riskyIngredients: risky, safeIngredients: safe,
       nutriScore: p.nutriscore_grade, novaGroup: p.nova_group,
@@ -150,7 +196,10 @@ export default function AnalyzePage() {
       additives: p.additives_tags?.map(a=>a.replace('en:','')),
       image: p.image_url, quantity: p.quantity,
       rawIngredientsText: p.ingredients_text,
-    });
+    };
+    setResult(newResult);
+    // Get AI analysis after setting result
+    getAISummary(newResult);
   };
 
   /** Go back from product detail to the search results list */
@@ -243,8 +292,11 @@ export default function AnalyzePage() {
       const ingMatch = text.match(/ingredients?[:\s]+(.+?)(?:\n\n|\z|allergen|contains|warning)/is);
       const ingText = ingMatch ? ingMatch[1] : text;
       const { risky, safe, all } = analyzeIngredients(ingText);
-      setResult({ productName:'Product from Image', ingredients:all, riskyIngredients:risky, safeIngredients:safe, rawIngredientsText:text });
+      const ocrResult: AnalysisResult = { productName:'Product from Image', ingredients:all, riskyIngredients:risky, safeIngredients:safe, rawIngredientsText:text };
+      setResult(ocrResult);
       setOcrPct(100); setOcrMsg('Done!');
+      // Get AI analysis for OCR result
+      await getAISummary(ocrResult);
     } catch(e) {
       setError(`OCR failed: ${e instanceof Error ? e.message : 'Unknown error'}. Try barcode or name search.`);
     } finally { setLoading(false); }
@@ -496,6 +548,50 @@ export default function AnalyzePage() {
                 </div>
               </div>
             </div>
+
+            {/* AI Analysis Section */}
+            {aiLoading ? (
+              <div className="p-6 rounded-2xl bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 shadow-sm">
+                <div className="flex items-center justify-center gap-3">
+                  <Loader2 className="h-5 w-5 animate-spin text-purple-600" />
+                  <p className="text-sm font-medium text-purple-700">Analyzing with AI...</p>
+                </div>
+              </div>
+            ) : result.aiSummary ? (
+              <div className={cn('p-6 rounded-2xl border shadow-sm', 
+                result.aiRecommendation === 'safe' 
+                  ? 'bg-emerald-50 border-emerald-200' 
+                  : result.aiRecommendation === 'avoid'
+                  ? 'bg-red-50 border-red-200'
+                  : 'bg-amber-50 border-amber-200'
+              )}>
+                <div className="flex items-start gap-3">
+                  {result.aiRecommendation === 'safe' && <CheckCircle className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />}
+                  {result.aiRecommendation === 'avoid' && <XCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />}
+                  {result.aiRecommendation === 'caution' && <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />}
+                  <div className="flex-1">
+                    <h3 className={cn('font-display font-700 mb-2',
+                      result.aiRecommendation === 'safe' 
+                        ? 'text-emerald-700' 
+                        : result.aiRecommendation === 'avoid'
+                        ? 'text-red-700'
+                        : 'text-amber-700'
+                    )}>
+                      🤖 AI Safety Analysis
+                    </h3>
+                    <div className={cn('text-sm whitespace-pre-wrap',
+                      result.aiRecommendation === 'safe' 
+                        ? 'text-emerald-800' 
+                        : result.aiRecommendation === 'avoid'
+                        ? 'text-red-800'
+                        : 'text-amber-800'
+                    )}>
+                      {result.aiSummary}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             {/* Safety overview cards */}
             <div className="grid grid-cols-3 gap-3">

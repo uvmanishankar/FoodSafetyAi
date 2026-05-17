@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Bell, ScanLine, Menu, X, Leaf, ChevronRight, Microscope, Eye, Activity, Heart, FileText } from 'lucide-react';
+import { Bell, ScanLine, Menu, X, Leaf, ChevronRight, Microscope, FileText, BookOpen } from 'lucide-react';
 import { Home } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
@@ -8,9 +8,7 @@ const navLinks = [
   { to: '/',             label: 'Home',          icon: Home },
   { to: '/analyze',        label: 'Analyze',        icon: ScanLine },
   { to: '/testing-guide',  label: 'Testing Guide',  icon: Microscope },
-  { to: '/nutrition',      label: 'Nutrition',      icon: Heart },
-  { to: '/awareness',      label: 'Awareness',      icon: Eye },
-  { to: '/foodborne',      label: 'Diseases',       icon: Activity },
+  { to: '/education',      label: 'Food Education Hub', icon: BookOpen },
   { to: '/alerts',         label: 'Alerts',         icon: Bell },
   { to: '/complaint',      label: 'Complaint',      icon: FileText },
 ];
@@ -64,7 +62,7 @@ export default function Header() {
             {/* Desktop Nav */}
             <nav className="hidden md:flex items-center gap-0.5">
               {navLinks.map(({ to, label }) => {
-                const active = pathname === to;
+                const active = pathname === to || (to === '/education' && (pathname === '/nutrition' || pathname === '/awareness' || pathname === '/foodborne'));
                 return (
                   <Link
                     key={to}
@@ -87,18 +85,6 @@ export default function Header() {
 
             {/* CTA + Mobile toggle */}
             <div className="flex items-center gap-3">
-              <Link
-                to="/analyze"
-                className={cn(
-                  'hidden sm:inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold',
-                  'gradient-primary text-white shadow-glow hover:shadow-glow-lg hover:opacity-90',
-                  'transition-all duration-200'
-                )}
-              >
-                <ScanLine className="h-3.5 w-3.5" />
-                Analyze Product
-              </Link>
-
               <button
                 aria-label="Toggle menu"
                 onClick={() => setMobileOpen(!mobileOpen)}
@@ -145,7 +131,7 @@ export default function Header() {
           {/* Nav links */}
           <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
             {navLinks.map(({ to, label, icon: Icon }) => {
-              const active = pathname === to;
+              const active = pathname === to || (to === '/education' && (pathname === '/nutrition' || pathname === '/awareness' || pathname === '/foodborne'));
               return (
                 <Link
                   key={to}
@@ -174,16 +160,6 @@ export default function Header() {
             })}
           </nav>
 
-          {/* Bottom CTA */}
-          <div className="p-4 border-t border-border/60">
-            <Link
-              to="/analyze"
-              className="flex items-center justify-center gap-2 w-full py-3 rounded-xl gradient-primary text-white text-sm font-semibold shadow-glow"
-            >
-              <ScanLine className="h-4 w-4" />
-              Analyze a Product
-            </Link>
-          </div>
         </div>
       </div>
     </>
