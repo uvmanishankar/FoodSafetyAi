@@ -16,6 +16,16 @@ export default defineConfig(({ mode }) => {
       overlay: false,
     },
     proxy: {
+      '/api/openfoodfacts/search': {
+        target: 'https://world.openfoodfacts.org',
+        changeOrigin: true,
+        rewrite: () => '/cgi/search.pl',
+      },
+      '/api/openfoodfacts/product': {
+        target: 'https://world.openfoodfacts.org',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/openfoodfacts\/product/, '/api/v2/product') + '.json',
+      },
       '/api/news': {
         target: 'https://newsapi.org',
         changeOrigin: true,

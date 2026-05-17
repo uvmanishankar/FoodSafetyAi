@@ -213,7 +213,7 @@ WHO_SHOULD_CARE: [target groups or "General population"]`;
   const fetchBarcode = async (code: string) => {
     setLoading(true); setError(null);
     try {
-      const r = await fetch(`https://world.openfoodfacts.org/api/v0/product/${code.trim()}.json`);
+      const r = await fetch(`/api/openfoodfacts/product/${encodeURIComponent(code.trim())}`);
       const d = await r.json();
       if (d.status !== 1 || !d.product) { setError(`Barcode "${code}" not found in OpenFoodFacts.`); return; }
       buildResult(d.product);
@@ -244,10 +244,7 @@ WHO_SHOULD_CARE: [target groups or "General population"]`;
 
     setLoading(true); setError(null); setResult(null); setSearchResults([]);
     try {
-      const r = await fetch(
-        `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(trimmed)}&search_simple=1&action=process&json=1&page_size=12&fields=code,product_name,brands,ingredients_text,ingredients_n,nutriscore_grade,nova_group,additives_tags,allergens,image_url,quantity`,
-        { signal: ac.signal }
-      );
+      const r = await fetch(`/api/openfoodfacts/search?search_terms=${encodeURIComponent(trimmed)}&page_size=12`, { signal: ac.signal });
       const d = await r.json();
       const products: OFFProduct[] = d.products || [];
 
