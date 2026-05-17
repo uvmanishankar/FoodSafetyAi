@@ -47,6 +47,7 @@ interface OFFProduct {
   product_name: string;
   brands?: string;
   ingredients_text?: string;
+  ingredients_text_en?: string;
   ingredients_n?: number;
   nutriscore_grade?: string;
   nova_group?: number;
@@ -55,6 +56,7 @@ interface OFFProduct {
   image_url?: string;
   nutriments?: Record<string, number>;
   quantity?: string;
+  [key: string]: unknown;
 }
 
 const RISKY_KEYWORDS = [
@@ -76,11 +78,27 @@ function analyzeIngredients(text: string) {
   return { risky, safe, all };
 }
 
+function getTextValue(value: unknown) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function getIngredientText(product: OFFProduct) {
+  const direct = getTextValue(product.ingredients_text);
+  if (direct) return direct;
+
+  const localized = Object.entries(product)
+    .filter(([key]) => key.startsWith('ingredients_text_'))
+    .map(([, value]) => getTextValue(value))
+    .find(Boolean);
+
+  return localized || '';
+}
+
 function getIngredientCount(product: OFFProduct) {
   if (typeof product.ingredients_n === 'number' && product.ingredients_n > 0) {
     return product.ingredients_n;
   }
-  return analyzeIngredients(product.ingredients_text || '').all.length;
+  return analyzeIngredients(getIngredientText(product)).all.length;
 }
 
 function dedupeProducts(products: OFFProduct[]) {
@@ -92,7 +110,7 @@ function dedupeProducts(products: OFFProduct[]) {
     const fallbackKey = [
       product.product_name?.trim().toLowerCase() || '',
       product.brands?.trim().toLowerCase() || '',
-      (product.ingredients_text || '').trim().toLowerCase().slice(0, 180),
+      getIngredientText(product).toLowerCase().slice(0, 180),
     ].join('|');
     const key = codeKey || fallbackKey;
     if (!key || seen.has(key)) continue;
@@ -101,6 +119,37 @@ function dedupeProducts(products: OFFProduct[]) {
   }
 
   return unique;
+}
+
+function getSearchVariants(query: string) {
+  const corrected = query.replace(/\bmaggie\b/g, 'maggi');
+  return Array.from(new Set([query, corrected]));
+}
+
+async function fetchOpenFoodFactsSearch(query: string, signal: AbortSignal) {
+  const response = await fetch(
+    `/api/openfoodfacts/search?search_terms=${encodeURIComponent(query)}&page_size=24`,
+    { signal }
+  );
+  const data = await readJsonResponse(response, 'OpenFoodFacts search failed. Please try again.');
+
+  return Array.isArray(data.products) ? data.products as OFFProduct[] : [];
+}
+
+async function readJsonResponse(response: Response, fallbackError: string) {
+  let data: any;
+
+  try {
+    data = await response.json();
+  } catch {
+    throw new Error(fallbackError);
+  }
+
+  if (!response.ok) {
+    throw new Error(typeof data?.error === 'string' ? data.error : fallbackError);
+  }
+
+  return data;
 }
 
 function NutriScore({ grade }: { grade?: string }) {
@@ -188,7 +237,8 @@ WHO_SHOULD_CARE: [target groups or "General population"]`;
   };
 
   const buildResult = (p: OFFProduct) => {
-    const { risky, safe, all } = analyzeIngredients(p.ingredients_text || '');
+    const ingredientsText = getIngredientText(p);
+    const { risky, safe, all } = analyzeIngredients(ingredientsText);
     const newResult: AnalysisResult = {
       productName: p.product_name || 'Unknown Product', brand: p.brands,
       ingredients: all, riskyIngredients: risky, safeIngredients: safe,
@@ -196,7 +246,7 @@ WHO_SHOULD_CARE: [target groups or "General population"]`;
       allergens: p.allergens,
       additives: p.additives_tags?.map(a=>a.replace('en:','')),
       image: p.image_url, quantity: p.quantity,
-      rawIngredientsText: p.ingredients_text,
+      rawIngredientsText: ingredientsText,
     };
     setResult(newResult);
     // Get AI analysis after setting result
@@ -214,10 +264,12 @@ WHO_SHOULD_CARE: [target groups or "General population"]`;
     setLoading(true); setError(null);
     try {
       const r = await fetch(`/api/openfoodfacts/product/${encodeURIComponent(code.trim())}`);
-      const d = await r.json();
+      const d = await readJsonResponse(r, 'OpenFoodFacts product lookup failed. Please try again.');
       if (d.status !== 1 || !d.product) { setError(`Barcode "${code}" not found in OpenFoodFacts.`); return; }
       buildResult(d.product);
-    } catch { setError('Network error. Check your connection and try again.'); }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Network error. Check your connection and try again.');
+    }
     finally { setLoading(false); }
   };
 
@@ -244,26 +296,43 @@ WHO_SHOULD_CARE: [target groups or "General population"]`;
 
     setLoading(true); setError(null); setResult(null); setSearchResults([]);
     try {
-      const r = await fetch(`/api/openfoodfacts/search?search_terms=${encodeURIComponent(trimmed)}&page_size=12`, { signal: ac.signal });
-      const d = await r.json();
-      const products: OFFProduct[] = d.products || [];
+      const variants = getSearchVariants(trimmed);
+      let products: OFFProduct[] = [];
+      let fallbackProducts: OFFProduct[] = [];
+
+      for (const variant of variants) {
+        const candidateProducts = await fetchOpenFoodFactsSearch(variant, ac.signal);
+        const namedProducts = candidateProducts.filter((product: OFFProduct) => product.product_name);
+        const withIngredients = namedProducts.filter((product: OFFProduct) => getIngredientCount(product) > 0);
+
+        if (!fallbackProducts.length && namedProducts.length) {
+          fallbackProducts = namedProducts;
+        }
+
+        if (withIngredients.length) {
+          products = namedProducts;
+          break;
+        }
+      }
+
+      if (!products.length) products = fallbackProducts;
 
       const withIngredients = products.filter((product: OFFProduct) => {
         if (!product.product_name) return false;
         return getIngredientCount(product) > 0;
       });
 
-      const valid = dedupeProducts(withIngredients);
+      const valid = dedupeProducts([...withIngredients, ...products]).slice(0, 12);
 
       if (!valid.length) {
-        setError(`No products with ingredient count found for "${q}". Try a different name.`);
+        setError(`No products found for "${q}". Try a different name or barcode.`);
         return;
       }
       searchCache.current.set(trimmed, valid);
       setSearchResults(valid);
     } catch (e: any) {
       if (e?.name === 'AbortError') return; // ignore aborted
-      setError('Network error. Check your connection and try again.');
+      setError(e instanceof Error ? e.message : 'Network error. Check your connection and try again.');
     }
     finally { setLoading(false); }
   }, []);

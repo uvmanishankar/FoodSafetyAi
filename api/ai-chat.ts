@@ -1,4 +1,14 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+type ApiRequest = {
+  method?: string;
+  body?: unknown;
+};
+
+type ApiResponse = {
+  status: (statusCode: number) => ApiResponse;
+  setHeader: (key: string, value: string) => ApiResponse;
+  send: (body: unknown) => void;
+  end: () => void;
+};
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -10,13 +20,13 @@ const MISTRAL_URL = 'https://api.mistral.ai/v1/chat/completions';
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const AI_PROVIDER = (process.env.AI_PROVIDER || process.env.VITE_AI_PROVIDER || 'auto').trim().toLowerCase();
 
-function sendJson(res: VercelResponse, statusCode: number, body: unknown) {
+function sendJson(res: ApiResponse, statusCode: number, body: unknown) {
   res.status(statusCode).setHeader('Content-Type', 'application/json');
   Object.entries(CORS_HEADERS).forEach(([key, value]) => res.setHeader(key, value));
   res.send(JSON.stringify(body));
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   Object.entries(CORS_HEADERS).forEach(([key, value]) => res.setHeader(key, value));
 
   if (req.method === 'OPTIONS') return res.status(204).end();

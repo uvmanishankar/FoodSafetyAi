@@ -1,4 +1,16 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+type QueryValue = string | string[] | undefined;
+
+type ApiRequest = {
+  method?: string;
+  query: Record<string, QueryValue>;
+};
+
+type ApiResponse = {
+  status: (statusCode: number) => ApiResponse;
+  setHeader: (key: string, value: string) => ApiResponse;
+  send: (body: unknown) => void;
+  end: () => void;
+};
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -6,13 +18,30 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
-function sendJson(res: VercelResponse, statusCode: number, body: unknown) {
+const OPEN_FOOD_FACTS_HEADERS = {
+  Accept: 'application/json',
+  'User-Agent': 'FoodSafetyAi/1.0 (https://github.com/uvmanishankar/FoodSafetyAi)',
+};
+
+function sendJson(res: ApiResponse, statusCode: number, body: unknown) {
   res.status(statusCode).setHeader('Content-Type', 'application/json');
   Object.entries(CORS_HEADERS).forEach(([key, value]) => res.setHeader(key, value));
   res.send(JSON.stringify(body));
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+async function sendOpenFoodFactsResponse(res: ApiResponse, upstream: Response) {
+  const text = await upstream.text();
+
+  try {
+    sendJson(res, upstream.status, JSON.parse(text));
+  } catch {
+    sendJson(res, upstream.ok ? 502 : upstream.status, {
+      error: 'OpenFoodFacts is temporarily unavailable. Please try again shortly.',
+    });
+  }
+}
+
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   Object.entries(CORS_HEADERS).forEach(([key, value]) => res.setHeader(key, value));
 
   if (req.method === 'OPTIONS') {
@@ -39,19 +68,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       offUrl.searchParams.set('action', 'process');
       offUrl.searchParams.set('json', '1');
       offUrl.searchParams.set('page_size', pageSize);
-      offUrl.searchParams.set('fields', 'code,product_name,brands,ingredients_text,ingredients_n,nutriscore_grade,nova_group,additives_tags,allergens,image_url,quantity');
+      offUrl.searchParams.set('fields', 'code,product_name,brands,ingredients_text,ingredients_text_en,ingredients_text_hi,ingredients_n,nutriscore_grade,nova_group,additives_tags,allergens,image_url,quantity');
 
-      const upstream = await fetch(offUrl.toString());
-      const data = await upstream.json();
-      sendJson(res, upstream.status, data);
+      const upstream = await fetch(offUrl.toString(), { headers: OPEN_FOOD_FACTS_HEADERS });
+      await sendOpenFoodFactsResponse(res, upstream);
       return;
     }
 
     if (route === 'product' && rest.length >= 1) {
       const code = rest[0];
-      const upstream = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json`);
-      const data = await upstream.json();
-      sendJson(res, upstream.status, data);
+      const upstream = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json`, {
+        headers: OPEN_FOOD_FACTS_HEADERS,
+      });
+      await sendOpenFoodFactsResponse(res, upstream);
       return;
     }
 
