@@ -8,8 +8,8 @@ export default {
     container: { center: true, padding: "2rem", screens: { "2xl": "1400px" } },
     extend: {
       fontFamily: {
-        sans:    ['DM Sans', 'system-ui', 'sans-serif'],
-        display: ['Playfair Display', 'Syne', 'system-ui', 'serif'],
+        sans:    ['Roboto', 'system-ui', 'sans-serif'],
+        display: ['Roboto', 'system-ui', 'sans-serif'],
         mono:    ['DM Mono', 'Fira Code', 'monospace'],
       },
       fontWeight: {
