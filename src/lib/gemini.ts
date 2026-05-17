@@ -61,6 +61,27 @@ function shouldFallback(status: number): boolean {
   return status === 401 || status === 403 || status === 404 || status >= 500;
 }
 
+async function callViaServerProxy(messages: MistralMessage[]): Promise<string | null> {
+  try {
+    const response = await fetch('/api/ai-chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages,
+        temperature: 0.7,
+        max_tokens: 1200,
+        top_p: 0.9,
+      }),
+    });
+
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data?.choices?.[0]?.message?.content ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export interface MistralMessage {
   role: 'user' | 'assistant';
   content: string;
@@ -87,10 +108,6 @@ export async function callGemini(
   const providerOrder = getProviderOrder();
   const availableProviders = providerOrder.filter(provider => PROVIDERS[provider].key);
 
-  if (!availableProviders.length) {
-    throw new Error('Missing AI API key in production environment. Set VITE_MISTRAL_API_KEY or VITE_GROQ_API_KEY on your hosting platform and redeploy.');
-  }
-
   // Build the full message list
   const messages: MistralMessage[] = [];
   
@@ -110,6 +127,13 @@ export async function callGemini(
   
   // Add current user message
   messages.push({ role: 'user', content: userMessage });
+
+  const proxyResponse = await callViaServerProxy(messages);
+  if (proxyResponse) return proxyResponse;
+
+  if (!availableProviders.length) {
+    throw new Error('Missing AI API key. Set MISTRAL_API_KEY or GROQ_API_KEY on the server (recommended), or VITE_MISTRAL_API_KEY / VITE_GROQ_API_KEY for direct client calls.');
+  }
 
   const body = {
     messages,
