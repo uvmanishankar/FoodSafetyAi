@@ -446,34 +446,36 @@ export default function AlertsPage() {
     const cats = isRegulation ? REGULATION_CATEGORIES : ALERT_CATEGORIES;
 
     try {
-      // ── Primary: NewsAPI via Vite dev proxy ──────────────────────────────
+      // ── Primary: NewsAPI via Vite dev proxy (dev only) ───────────────────
       let primaryArticles: Article[] = [];
-      try {
-        const q = encodeURIComponent(cats[catIdx].query);
-        const from = new Date(Date.now() - 1000 * 60 * 60 * 24 * 30).toISOString();
-        const res = await fetch(
-          `/api/news/v2/everything?q=${q}&searchIn=title,description&language=en&sortBy=publishedAt&domains=${NEWS_DOMAINS}&from=${encodeURIComponent(from)}&pageSize=40`
-        );
-        if (res.ok) {
-          const data = await res.json();
-          if (data.status === 'ok') {
-            primaryArticles = normalizeAndRankArticles(data.articles || [], isRegulation);
-            // Broaden query if too few domain-restricted results
-            if (primaryArticles.length < 6) {
-              const broadRes = await fetch(
-                `/api/news/v2/everything?q=${q}&searchIn=title,description&language=en&sortBy=publishedAt&from=${encodeURIComponent(from)}&pageSize=40`
-              );
-              if (broadRes.ok) {
-                const broadData = await broadRes.json();
-                if (broadData.status === 'ok') {
-                  primaryArticles = normalizeAndRankArticles(broadData.articles || [], isRegulation);
+      if (!import.meta.env.PROD) {
+        try {
+          const q = encodeURIComponent(cats[catIdx].query);
+          const from = new Date(Date.now() - 1000 * 60 * 60 * 24 * 30).toISOString();
+          const res = await fetch(
+            `/api/news/v2/everything?q=${q}&searchIn=title,description&language=en&sortBy=publishedAt&domains=${NEWS_DOMAINS}&from=${encodeURIComponent(from)}&pageSize=40`
+          );
+          if (res.ok) {
+            const data = await res.json();
+            if (data.status === 'ok') {
+              primaryArticles = normalizeAndRankArticles(data.articles || [], isRegulation);
+              // Broaden query if too few domain-restricted results
+              if (primaryArticles.length < 6) {
+                const broadRes = await fetch(
+                  `/api/news/v2/everything?q=${q}&searchIn=title,description&language=en&sortBy=publishedAt&from=${encodeURIComponent(from)}&pageSize=40`
+                );
+                if (broadRes.ok) {
+                  const broadData = await broadRes.json();
+                  if (broadData.status === 'ok') {
+                    primaryArticles = normalizeAndRankArticles(broadData.articles || [], isRegulation);
+                  }
                 }
               }
             }
           }
+        } catch {
+          // NewsAPI unavailable — fall through to free sources
         }
-      } catch {
-        // NewsAPI unavailable — fall through to free sources
       }
 
       if (primaryArticles.length >= 6) {

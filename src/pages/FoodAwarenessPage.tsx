@@ -196,8 +196,13 @@ function TacticCard({t}:{t:typeof TACTICS[0]}){
         </div>
       </button>
       <div
-        style={{height:contentHeight,opacity:open?1:0}}
-        className="transition-all duration-[400ms] ease-[cubic-bezier(0.16,1,0.3,1)] overflow-hidden"
+        className="transition-all overflow-hidden"
+        style={{
+          height: contentHeight,
+          opacity: open ? 1 : 0,
+          transitionDuration: '400ms',
+          transitionTimingFunction: 'cubic-bezier(0.16,1,0.3,1)',
+        }}
       >
         <div ref={contentRef} className="px-5 pb-6 pt-4 border-t border-border/40 bg-card space-y-5">
           {/* Tactic Image */}

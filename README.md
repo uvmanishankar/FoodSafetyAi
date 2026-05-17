@@ -226,7 +226,7 @@ The output is in `dist/`. It's a standard static SPA — deploy to any static ho
 
 ### Environment Variables in Production
 
-Set `VITE_GEMINI_API_KEY` in your hosting platform's environment variable settings. `NEWS_API_KEY` is only used by the Vite dev proxy — in production, the Alerts page falls back to GDELT and RSS automatically.
+Set `VITE_MISTRAL_API_KEY` in your hosting platform's environment variable settings. `NEWS_API_KEY` is only used by the Vite dev proxy — in production, the Alerts page falls back to GDELT and RSS automatically.
 
 ---
 

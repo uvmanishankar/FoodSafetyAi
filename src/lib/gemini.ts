@@ -1,13 +1,16 @@
 /**
- * Mistral API helper
+ * AI API helper
  * ──────────────────────────────────────────────────────────────────────────
- * Centralised function to call Mistral API.
- * The API key is read from VITE_MISTRAL_API_KEY env variable.
- * Includes automatic retry with exponential backoff for 429 rate-limit errors.
+ * Centralised function to call Mistral or Groq.
+ * Prefers the configured provider, retries rate limits, and falls back to the
+ * other provider when the first one is unavailable.
  */
 
-const MISTRAL_KEY = import.meta.env.VITE_MISTRAL_API_KEY as string;
+const MISTRAL_KEY = (import.meta.env.VITE_MISTRAL_API_KEY || import.meta.env.VITE_GEMINI_API_KEY || '').trim();
+const GROQ_KEY = (import.meta.env.VITE_GROQ_API_KEY || '').trim();
+const AI_PROVIDER = (import.meta.env.VITE_AI_PROVIDER || 'auto').trim().toLowerCase();
 const MISTRAL_URL = 'https://api.mistral.ai/v1/chat/completions';
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 /** Maximum number of retries for rate-limit (429) errors */
 const MAX_RETRIES = 3;
@@ -22,6 +25,40 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 function parseRetryDelay(errorBody: string, attempt: number): number {
   // Exponential backoff: 5s, 15s, 30s
   return Math.min(5000 * Math.pow(3, attempt), 30_000);
+}
+
+type AIProvider = 'mistral' | 'groq';
+
+interface ProviderConfig {
+  key: string;
+  url: string;
+  model: string;
+  label: string;
+}
+
+const PROVIDERS: Record<AIProvider, ProviderConfig> = {
+  mistral: {
+    key: MISTRAL_KEY,
+    url: MISTRAL_URL,
+    model: import.meta.env.VITE_MISTRAL_MODEL?.trim() || 'mistral-small-latest',
+    label: 'Mistral',
+  },
+  groq: {
+    key: GROQ_KEY,
+    url: GROQ_URL,
+    model: import.meta.env.VITE_GROQ_MODEL?.trim() || 'llama-3.1-8b-instant',
+    label: 'Groq',
+  },
+};
+
+function getProviderOrder(): AIProvider[] {
+  if (AI_PROVIDER === 'groq') return ['groq', 'mistral'];
+  if (AI_PROVIDER === 'mistral') return ['mistral', 'groq'];
+  return ['groq', 'mistral'];
+}
+
+function shouldFallback(status: number): boolean {
+  return status === 401 || status === 403 || status === 404 || status >= 500;
 }
 
 export interface MistralMessage {
@@ -47,6 +84,13 @@ export async function callGemini(
   history: { role: 'user' | 'assistant'; content: string }[],
   userMessage: string,
 ): Promise<string> {
+  const providerOrder = getProviderOrder();
+  const availableProviders = providerOrder.filter(provider => PROVIDERS[provider].key);
+
+  if (!availableProviders.length) {
+    throw new Error('Missing AI API key in production environment. Set VITE_MISTRAL_API_KEY or VITE_GROQ_API_KEY on your hosting platform and redeploy.');
+  }
+
   // Build the full message list
   const messages: MistralMessage[] = [];
   
@@ -68,67 +112,71 @@ export async function callGemini(
   messages.push({ role: 'user', content: userMessage });
 
   const body = {
-    model: 'mistral-small-latest',
     messages,
     temperature: 0.7,
     max_tokens: 1200,
     top_p: 0.9,
   };
 
-  const payload = JSON.stringify(body);
+  let lastError: string | null = null;
 
-  // Retry loop for 429 rate-limit errors
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    const response = await fetch(MISTRAL_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${MISTRAL_KEY}`,
-      },
-      body: payload,
-    });
+  for (const provider of availableProviders) {
+    const config = PROVIDERS[provider];
+    const payload = JSON.stringify({ ...body, model: config.model });
 
-    if (response.ok) {
-      const data = await response.json();
-      return data?.choices?.[0]?.message?.content ?? 'Sorry, I could not generate a response right now.';
-    }
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      const response = await fetch(config.url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${config.key}`,
+        },
+        body: payload,
+      });
 
-    const errText = await response.text();
+      if (response.ok) {
+        const data = await response.json();
+        return data?.choices?.[0]?.message?.content ?? 'Sorry, I could not generate a response right now.';
+      }
 
-    if (response.status === 429) {
-      // Check if this is quota exhaustion
-      const isQuotaExhausted = errText.includes('quota') || errText.includes('limit');
-      const retryMs = parseRetryDelay(errText, attempt);
+      const errText = await response.text();
+      lastError = `${config.label} API error (${response.status}): ${errText}`;
 
-      if (isQuotaExhausted) {
-        console.error('Mistral API: Quota exhausted.');
+      if (response.status === 429) {
+        const isQuotaExhausted = errText.includes('quota') || errText.includes('limit');
+        const retryMs = parseRetryDelay(errText, attempt);
+
+        if (isQuotaExhausted) {
+          console.error(`${config.label} API: Quota exhausted.`);
+          throw new MistralQuotaError(
+            `${config.label} API quota has been exhausted. Please wait a moment and try again.`,
+            retryMs,
+            true,
+          );
+        }
+
+        if (attempt < MAX_RETRIES) {
+          console.warn(`${config.label} API rate limited (429). Retrying in ${retryMs}ms... (attempt ${attempt + 1}/${MAX_RETRIES})`);
+          await sleep(retryMs);
+          continue;
+        }
+
         throw new MistralQuotaError(
-          'Mistral API quota has been exhausted. Please wait a moment and try again.',
+          `${config.label} API rate limit exceeded. Please wait a moment and try again.`,
           retryMs,
-          true,
+          false,
         );
       }
 
-      // Transient rate limit — retry with backoff
-      if (attempt < MAX_RETRIES) {
-        console.warn(`Mistral API rate limited (429). Retrying in ${retryMs}ms... (attempt ${attempt + 1}/${MAX_RETRIES})`);
-        await sleep(retryMs);
-        continue;
+      if (shouldFallback(response.status) && provider !== availableProviders[availableProviders.length - 1]) {
+        console.warn(`${config.label} API returned ${response.status}; trying fallback provider.`);
+        break;
       }
 
-      // All retries exhausted
-      throw new MistralQuotaError(
-        'Mistral API rate limit exceeded. Please wait a moment and try again.',
-        retryMs,
-        false,
-      );
+      console.error(`${config.label} API error:`, response.status, errText);
+      throw new Error(`${config.label} API error (${response.status}): ${errText}`);
     }
-
-    // Non-429 errors — don't retry
-    console.error('Mistral API error:', response.status, errText);
-    throw new Error(`Mistral API error (${response.status}): ${errText}`);
   }
 
-  // Should never reach here, but just in case
-  throw new Error('Unexpected error in Mistral API call');
+  throw new Error(lastError ?? 'Unexpected error in AI API call');
 }

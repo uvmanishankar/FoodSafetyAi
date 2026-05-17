@@ -180,7 +180,8 @@ WHO_SHOULD_CARE: [target groups or "General population"]`;
       setResult(prev => prev ? { ...prev, aiSummary: summary, aiRecommendation: recommendation } : null);
     } catch (err) {
       console.error('AI analysis error:', err);
-      setError('Failed to get AI analysis. Please try again.');
+      const msg = err instanceof Error ? err.message : 'Failed to get AI analysis. Please try again.';
+      setError(msg);
     } finally {
       setAiLoading(false);
     }
