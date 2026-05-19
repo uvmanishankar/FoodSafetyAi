@@ -142,11 +142,12 @@ async function readJsonResponse(response: Response, fallbackError: string) {
   try {
     data = await response.json();
   } catch {
-    throw new Error(fallbackError);
+    const txt = await response.text().catch(() => 'Failed to read response body');
+    throw new Error(`${fallbackError} (${txt})`);
   }
 
   if (!response.ok) {
-    throw new Error(typeof data?.error === 'string' ? data.error : fallbackError);
+    throw new Error(typeof data?.error === 'string' ? data.error : `${fallbackError} (status ${response.status})`);
   }
 
   return data;

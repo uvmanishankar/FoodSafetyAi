@@ -60,27 +60,40 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
     const payload = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
 
     for (const p of providers) {
-      const upstream = await fetch(p.url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${p.key}`,
-        },
-        body: JSON.stringify({ ...payload, model: p.model }),
-      });
+      try {
+        const bodyStr = JSON.stringify({ ...payload, model: p.model });
+        const upstream = await fetch(p.url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${p.key}`,
+          },
+          body: bodyStr,
+        });
 
-      const text = await upstream.text();
-      if (upstream.ok) {
-        res.status(200).setHeader('Content-Type', 'application/json').send(text);
-        return;
-      }
-      if (![401, 403, 404].includes(upstream.status) && upstream.status < 500) {
-        return sendJson(res, upstream.status, { error: text });
+        const text = await upstream.text();
+        // Log provider response (non-sensitive): status + truncated body
+        try { console.info(`AI provider ${p.name} responded:`, { status: upstream.status, body: String(text).slice(0, 1000) }); } catch {}
+
+        if (upstream.ok) {
+          res.status(200).setHeader('Content-Type', 'application/json').send(text);
+          return;
+        }
+
+        if (![401, 403, 404].includes(upstream.status) && upstream.status < 500) {
+          return sendJson(res, upstream.status, { error: text });
+        }
+      } catch (provErr) {
+        // Log the provider fetch error and try next provider
+        console.error(`Error calling AI provider ${p.name}:`, provErr && (provErr.stack || provErr.message || provErr));
+        continue;
       }
     }
 
     return sendJson(res, 502, { error: 'All AI providers failed.' });
   } catch (error) {
+    // Log full error stack for diagnostics (no secrets)
+    console.error('AI proxy handler error:', error && (error.stack || error.message || error));
     const message = error instanceof Error ? error.message : 'AI proxy failed';
     return sendJson(res, 500, { error: message });
   }

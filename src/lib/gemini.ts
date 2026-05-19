@@ -73,9 +73,17 @@ async function callViaServerProxy(messages: MistralMessage[]): Promise<string | 
         top_p: 0.9,
       }),
     });
+    if (!response.ok) {
+      const text = await response.text().catch(() => 'Failed to read body');
+      console.warn('Server proxy /api/ai-chat returned', response.status, text);
+      return null;
+    }
 
-    if (!response.ok) return null;
-    const data = await response.json();
+    const data = await response.json().catch((e) => {
+      console.warn('Failed to parse /api/ai-chat JSON response:', e);
+      return null;
+    });
+
     return data?.choices?.[0]?.message?.content ?? null;
   } catch {
     return null;
@@ -148,18 +156,29 @@ export async function callGemini(
     const config = PROVIDERS[provider];
     const payload = JSON.stringify({ ...body, model: config.model });
 
+    if (typeof config.url !== 'string' || !config.url) {
+      throw new Error(`${config.label} provider URL is invalid`);
+    }
+
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-      const response = await fetch(config.url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${config.key}`,
-        },
-        body: payload,
-      });
+      let response: Response;
+      try {
+        response = await fetch(config.url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${config.key || ''}`,
+          },
+          body: payload,
+        });
+      } catch (fetchErr) {
+        console.error(`${config.label} fetch failed:`, fetchErr);
+        if (attempt < MAX_RETRIES) { await sleep(parseRetryDelay('', attempt)); continue; }
+        throw fetchErr;
+      }
 
       if (response.ok) {
-        const data = await response.json();
+        const data = await response.json().catch(() => null);
         return data?.choices?.[0]?.message?.content ?? 'Sorry, I could not generate a response right now.';
       }
 
