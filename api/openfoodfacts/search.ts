@@ -35,14 +35,23 @@ function sendJson(res: ApiResponse, statusCode: number, body: unknown) {
 
 async function sendOpenFoodFactsResponse(res: ApiResponse, upstream: Response) {
   const text = await upstream.text();
+  const contentType = typeof upstream.headers?.get === 'function' ? (upstream.headers.get('content-type') || '') : '';
 
-  try {
-    sendJson(res, upstream.status, JSON.parse(text));
-  } catch {
-    sendJson(res, upstream.ok ? 502 : upstream.status, {
-      error: 'OpenFoodFacts is temporarily unavailable. Please try again shortly.',
-    });
+  if (contentType.includes('application/json')) {
+    try {
+      sendJson(res, upstream.status, JSON.parse(text));
+      return;
+    } catch {
+      // fall through to return a friendly error
+    }
   }
+
+  if (!upstream.ok) {
+    sendJson(res, upstream.status, { error: `OpenFoodFacts upstream error (${upstream.status})` });
+    return;
+  }
+
+  sendJson(res, 502, { error: 'OpenFoodFacts is temporarily unavailable. Please try again shortly.' });
 }
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {

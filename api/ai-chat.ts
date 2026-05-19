@@ -35,6 +35,17 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   const mistralKey = (process.env.MISTRAL_API_KEY || process.env.VITE_MISTRAL_API_KEY || process.env.VITE_GEMINI_API_KEY || '').trim();
   const groqKey = (process.env.GROQ_API_KEY || process.env.VITE_GROQ_API_KEY || '').trim();
 
+  // Diagnostic: log which keys are present (do not log values)
+  try {
+    console.info('AI key presence:', {
+      mistral: !!mistralKey,
+      groq: !!groqKey,
+      provider: AI_PROVIDER,
+    });
+  } catch {
+    // ignore logging errors in restricted envs
+  }
+
   const order = AI_PROVIDER === 'mistral' ? ['mistral', 'groq'] : AI_PROVIDER === 'groq' ? ['groq', 'mistral'] : ['groq', 'mistral'];
 
   const providers = order
