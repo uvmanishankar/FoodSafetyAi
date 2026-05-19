@@ -58,6 +58,10 @@ async function sendOpenFoodFactsResponse(res: ApiResponse, upstream: Response, c
       if (cacheKey && upstream.ok) {
         OFF_CACHE.set(cacheKey, { expires: Date.now() + OFF_CACHE_TTL, status: upstream.status, body: parsed });
       }
+      // Allow browser/CDN to cache successful GET responses briefly
+      if (upstream.ok) {
+        try { res.setHeader('Cache-Control', 'public, max-age=60'); } catch {}
+      }
       sendJson(res, upstream.status, parsed);
       return;
     } catch {
@@ -105,6 +109,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       const cacheKey = offUrl.toString();
       const cached = OFF_CACHE.get(cacheKey);
       if (cached && cached.expires > Date.now()) {
+        try { res.setHeader('Cache-Control', 'public, max-age=60'); } catch {}
         sendJson(res, cached.status, cached.body);
         return;
       }
@@ -120,6 +125,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       const cacheKey = prodUrl;
       const cached = OFF_CACHE.get(cacheKey);
       if (cached && cached.expires > Date.now()) {
+        try { res.setHeader('Cache-Control', 'public, max-age=60'); } catch {}
         sendJson(res, cached.status, cached.body);
         return;
       }

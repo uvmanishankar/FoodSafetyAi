@@ -63,6 +63,8 @@ function shouldFallback(status: number): boolean {
 
 async function callViaServerProxy(messages: MistralMessage[]): Promise<string | null> {
   try {
+    // Debug: log call inputs (no secrets)
+    try { console.debug('Calling /api/ai-chat', { bodyPreview: JSON.stringify({ messages }).slice(0, 500) }); } catch {}
     const response = await fetch('/api/ai-chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -139,6 +141,11 @@ export async function callGemini(
   const proxyResponse = await callViaServerProxy(messages);
   if (proxyResponse) return proxyResponse;
 
+  // If the server proxy is unavailable, do not fall back to direct client provider calls
+  // (these often fail in production because VITE_ env vars aren't available). Instead,
+  // surface a clear error to the caller.
+  throw new Error('AI service unavailable. Please try again later.');
+
   if (!availableProviders.length) {
     throw new Error('Missing AI API key. Set MISTRAL_API_KEY or GROQ_API_KEY on the server (recommended), or VITE_MISTRAL_API_KEY / VITE_GROQ_API_KEY for direct client calls.');
   }
@@ -163,6 +170,8 @@ export async function callGemini(
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       let response: Response;
       try {
+        // Debug: log provider call inputs (mask keys)
+        try { console.debug('Calling AI provider', { provider: provider, url: config.url, hasKey: !!config.key, payloadPreview: payload.slice(0, 500) }); } catch {}
         response = await fetch(config.url, {
           method: 'POST',
           headers: {
