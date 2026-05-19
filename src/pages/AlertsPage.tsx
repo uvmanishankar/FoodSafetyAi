@@ -774,7 +774,7 @@ export default function AlertsPage() {
             <a href="https://www.gdeltproject.org" target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-foreground transition-colors">GDELT</a>
             , and{' '}
             <a href="https://www.foodsafetynews.com" target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-foreground transition-colors">Food Safety News</a>
-            . No static data is used. AI summaries powered by Gemini. Content is for informational purposes only.
+            . No static data is used. AI summaries are generated through the server-side AI proxy. Content is for informational purposes only.
           </p>
         </div>
       </div>

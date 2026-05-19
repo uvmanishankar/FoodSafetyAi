@@ -1,7 +1,11 @@
 import { Leaf, Github, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-const links = {
+type FooterLink =
+  | { label: string; to: string; href?: never; external?: never }
+  | { label: string; href: string; external?: boolean; to?: never };
+
+const links: Record<string, FooterLink[]> = {
   Explore: [
     { label: 'Analyze Product',  to: '/analyze' },
     { label: 'Testing Guide',    to: '/testing-guide' },
@@ -47,7 +51,7 @@ export default function Footer() {
                 {section}
               </h4>
               <ul className="space-y-2.5">
-                {items.map((item: any) => (
+                {items.map((item) => (
                   <li key={item.label}>
                     {item.href ? (
                       <a
@@ -79,7 +83,7 @@ export default function Footer() {
             © {new Date().getFullYear()} FoodSafety AI. For informational purposes only.
           </p>
           <p className="text-xs text-muted-foreground/50">
-            Built with React + TypeScript + Gemini AI
+            Built with React + TypeScript + server-side AI
           </p>
         </div>
       </div>

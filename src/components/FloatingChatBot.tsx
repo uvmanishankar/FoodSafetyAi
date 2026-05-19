@@ -2,7 +2,7 @@
  * FloatingChatBot — A beautiful, draggable floating chat assistant
  * -----------------------------------------------------------------
  * Renders as a fixed floating button + slide-up chat panel.
- * Uses Gemini Flash API via the centralized helper.
+ * Uses the centralized server-side AI helper.
  */
 
 import { useState, useRef, useEffect } from 'react';
@@ -130,11 +130,9 @@ export default function FloatingChatBot({
     } catch (err: unknown) {
       console.error('Chat error:', err);
       let errorMsg: string;
-      const e = err as { name?: string; isQuotaExhausted?: boolean; message?: string };
-      if (e?.name === 'MistralQuotaError' && e.isQuotaExhausted) {
-        errorMsg = '⚠️ The AI assistant is temporarily unavailable — the API quota has been reached. Please try again later.';
-      } else if (e?.name === 'MistralQuotaError') {
-        errorMsg = '⏳ Too many requests — please wait a few seconds and try again.';
+      const e = err as { message?: string };
+      if (e?.message?.startsWith('AI ')) {
+        errorMsg = e.message;
       } else if (e?.message?.includes('API error')) {
         errorMsg = '❌ API error occurred. Please check your API key configuration.';
       } else {

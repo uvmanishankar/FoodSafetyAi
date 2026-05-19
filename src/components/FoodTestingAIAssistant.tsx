@@ -1,7 +1,7 @@
 /**
  * FoodTestingAIAssistant
  * ──────────────────────────────────────────────────────────────────────────
- * A Gemini-powered chat assistant embedded inside each test method card.
+ * An AI-powered chat assistant embedded inside each test method card.
  * It guides users step-by-step through the test, interprets their results,
  * and provides deep ingredient/adulteration insights in real time.
  */
@@ -251,12 +251,11 @@ What would you like to know first?`,
       if (reply.includes('PASS') || reply.includes('FAIL') || reply.includes('INCONCLUSIVE')) {
         setTimeout(() => setShowReplies(true), 800);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const error = err as { message?: string };
       let errorContent: string;
-      if (err?.name === 'MistralQuotaError' && err.isQuotaExhausted) {
-        errorContent = '⚠️ The AI assistant is temporarily unavailable — the API quota has been reached. Please try again later. In the meantime, you can follow the step-by-step instructions shown above the chat.';
-      } else if (err?.name === 'MistralQuotaError') {
-        errorContent = '⏳ Too many requests — please wait a few seconds and try again.';
+      if (error?.message?.startsWith('AI ')) {
+        errorContent = `${error.message} In the meantime, you can follow the step-by-step instructions shown above the chat.`;
       } else {
         errorContent = "🔌 I'm having trouble connecting right now. Please check your internet connection and try again. In the meantime, you can follow the step-by-step instructions shown above the chat.";
       }
@@ -397,7 +396,7 @@ Keep each section concise (2-3 sentences). Use bullet points inside sections. Be
           </div>
           <div className="flex items-center gap-2">
             <span className="flex items-center gap-1 text-[10px] font-700 px-2 py-1 rounded-full bg-white/15 text-white/90 border border-white/20">
-              <Sparkles className="h-2.5 w-2.5" /> Gemini AI
+              <Sparkles className="h-2.5 w-2.5" /> AI
             </span>
             {isOpen
               ? <ChevronUp   className="h-4 w-4 text-white/80" />

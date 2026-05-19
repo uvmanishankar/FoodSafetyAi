@@ -18,12 +18,15 @@ const CORS_HEADERS = {
 
 const MISTRAL_URL = 'https://api.mistral.ai/v1/chat/completions';
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const AI_PROVIDER = (process.env.AI_PROVIDER || process.env.VITE_AI_PROVIDER || 'auto').trim().toLowerCase();
 
 function sendJson(res: ApiResponse, statusCode: number, body: unknown) {
   res.status(statusCode).setHeader('Content-Type', 'application/json');
   Object.entries(CORS_HEADERS).forEach(([key, value]) => res.setHeader(key, value));
   res.send(JSON.stringify(body));
+}
+
+function envValue(name: string, fallback = '') {
+  return (process.env[name] || fallback).trim();
 }
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
@@ -32,26 +35,27 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return sendJson(res, 405, { error: 'Method not allowed' });
 
-  const mistralKey = (process.env.MISTRAL_API_KEY || process.env.VITE_MISTRAL_API_KEY || process.env.VITE_GEMINI_API_KEY || '').trim();
-  const groqKey = (process.env.GROQ_API_KEY || process.env.VITE_GROQ_API_KEY || '').trim();
+  const aiProvider = envValue('AI_PROVIDER', 'auto').toLowerCase();
+  const mistralKey = envValue('MISTRAL_API_KEY');
+  const groqKey = envValue('GROQ_API_KEY');
 
   // Diagnostic: log which keys are present (do not log values)
   try {
     console.info('AI key presence:', {
       mistral: !!mistralKey,
       groq: !!groqKey,
-      provider: AI_PROVIDER,
+      provider: aiProvider,
     });
   } catch {
     // ignore logging errors in restricted envs
   }
 
-  const order = AI_PROVIDER === 'mistral' ? ['mistral', 'groq'] : AI_PROVIDER === 'groq' ? ['groq', 'mistral'] : ['groq', 'mistral'];
+  const order = aiProvider === 'mistral' ? ['mistral', 'groq'] : aiProvider === 'groq' ? ['groq', 'mistral'] : ['groq', 'mistral'];
 
   const providers = order
     .map((name) => name === 'groq'
-      ? { name, key: groqKey, url: GROQ_URL, model: process.env.GROQ_MODEL || process.env.VITE_GROQ_MODEL || 'llama-3.1-8b-instant' }
-      : { name, key: mistralKey, url: MISTRAL_URL, model: process.env.MISTRAL_MODEL || process.env.VITE_MISTRAL_MODEL || 'mistral-small-latest' })
+      ? { name, key: groqKey, url: GROQ_URL, model: envValue('GROQ_MODEL', 'llama-3.1-8b-instant') }
+      : { name, key: mistralKey, url: MISTRAL_URL, model: envValue('MISTRAL_MODEL', 'mistral-small-latest') })
     .filter((p) => p.key);
 
   if (!providers.length) return sendJson(res, 500, { error: 'Missing server AI key. Set MISTRAL_API_KEY or GROQ_API_KEY.' });
@@ -73,7 +77,11 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
 
         const text = await upstream.text();
         // Log provider response (non-sensitive): status + truncated body
-        try { console.info(`AI provider ${p.name} responded:`, { status: upstream.status, body: String(text).slice(0, 1000) }); } catch {}
+        try {
+          console.info(`AI provider ${p.name} responded:`, { status: upstream.status, body: String(text).slice(0, 1000) });
+        } catch {
+          // ignore logging errors in restricted envs
+        }
 
         if (upstream.ok) {
           res.status(200).setHeader('Content-Type', 'application/json').send(text);

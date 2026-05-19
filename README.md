@@ -6,7 +6,7 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?logo=typescript)
 ![Vite](https://img.shields.io/badge/Vite-5-646CFF?logo=vite)
 ![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-3-38B2AC?logo=tailwindcss)
-![Gemini AI](https://img.shields.io/badge/Gemini-AI-4285F4?logo=google)
+![Server AI](https://img.shields.io/badge/AI-Server%20Proxy-10B981)
 
 ---
 
@@ -28,7 +28,7 @@
 
 ## 🌟 Overview
 
-**Food Safety Hub India** is a React + TypeScript SPA that educates Indian consumers about food safety, adulteration, nutrition, foodborne diseases, and FSSAI regulations. It integrates Google Gemini AI across every page for real-time, contextual assistance and pulls fully live news from multiple sources — no static data.
+**Food Safety Hub India** is a React + TypeScript SPA that educates Indian consumers about food safety, adulteration, nutrition, foodborne diseases, and FSSAI regulations. It integrates server-side AI across every page for real-time, contextual assistance and pulls fully live news from multiple sources — no static data.
 
 ---
 
@@ -36,14 +36,14 @@
 
 | Feature | Description |
 |---|---|
-| 🔍 **Food Label Analyzer** | Upload or paste a photo of any food label — OCR extracts the ingredient list and Gemini AI analyzes safety, additives, and red flags |
+| 🔍 **Food Label Analyzer** | Upload or paste a photo of any food label — OCR extracts the ingredient list and AI analyzes safety, additives, and red flags |
 | 🧪 **Home Adulteration Testing Guide** | Step-by-step guides for 10+ home tests for common adulterants in milk, turmeric, honey, oils, and more |
 | 🛡️ **Food Safety Awareness** | Tactics to avoid adulteration, label reading steps, and common myths vs facts |
 | 🦠 **Foodborne Disease Encyclopedia** | Detailed profiles of 10+ foodborne diseases — pathogens, symptoms, onset times, prevention, and treatment |
 | 🥦 **Nutrition Guide** | Food group breakdowns, macro/micronutrients, Indian dietary guidelines, daily needs calculator |
 | 🚨 **Live Safety Alerts & Regulations** | Real-time food recall alerts, contamination news, and FSSAI regulation updates — fetched live from NewsAPI, GDELT, and RSS feeds |
 | 📢 **File a Complaint** | Guidance on how to file food safety complaints with FSSAI, state authorities, and consumer courts |
-| 🤖 **Floating AI Assistant** | Every page has a context-aware AI chatbot (Google Gemini) pre-configured for that page's topic |
+| 🤖 **Floating AI Assistant** | Every page has a context-aware AI chatbot pre-configured for that page's topic |
 
 ---
 
@@ -52,7 +52,7 @@
 - **Frontend**: React 18, TypeScript, React Router v6
 - **Build Tool**: Vite 5
 - **Styling**: Tailwind CSS 3, shadcn/ui (Radix UI primitives)
-- **AI**: Google Gemini 2.0 Flash (`gemini-2.0-flash`)
+- **AI**: Groq or Mistral through the Vercel `/api/ai-chat` serverless proxy
 - **OCR**: Tesseract.js (client-side label scanning)
 - **Live News**: NewsAPI (primary), GDELT Project v2 (fallback), Food Safety News RSS + EFSA RSS (fallback)
 - **Icons**: Lucide React
@@ -87,7 +87,7 @@ food-safety-hub/
 │   │   ├── ComplaintPage.tsx       # FSSAI complaint guidance
 │   │   └── NotFound.tsx
 │   ├── lib/
-│   │   ├── gemini.ts               # Gemini API helper with retry/backoff
+│   │   ├── gemini.ts               # AI proxy helper
 │   │   └── utils.ts                # cn() utility
 │   ├── App.tsx
 │   ├── main.tsx
@@ -144,14 +144,22 @@ npm run test:watch  # Run tests in watch mode
 Create a `.env.local` file in the project root (it is git-ignored):
 
 ```env
-# Required — Google Gemini AI (all AI features)
-# Get your key at: https://aistudio.google.com/app/apikey
-VITE_GEMINI_API_KEY=your_gemini_api_key_here
+# Required for AI features. These are server-side only.
+# Add at least one provider key.
+GROQ_API_KEY=your_groq_api_key_here
+MISTRAL_API_KEY=your_mistral_api_key_here
+
+# Optional AI provider/model selection
+AI_PROVIDER=auto
+GROQ_MODEL=llama-3.1-8b-instant
+MISTRAL_MODEL=mistral-small-latest
 
 # Optional — NewsAPI for live alerts (free tier at newsapi.org)
 # Used server-side by the Vite dev proxy. Falls back to GDELT + RSS if absent.
 NEWS_API_KEY=your_news_api_key_here
 ```
+
+Do not prefix AI provider keys with `VITE_`. The browser calls `/api/ai-chat`, and the Vercel function reads `GROQ_API_KEY` / `MISTRAL_API_KEY` from runtime environment variables.
 
 > **Note on Alerts Page**: If `NEWS_API_KEY` is not provided, the Alerts page automatically falls back to GDELT Project and Food Safety News RSS feeds — both free and key-free. All news is always live; no static data is used.
 
@@ -162,7 +170,7 @@ NEWS_API_KEY=your_news_api_key_here
 | Route | Page | Description |
 |---|---|---|
 | `/` | Home | Landing page with safety tips, food facts ticker, and navigation |
-| `/analyze` | Food Label Analyzer | OCR + Gemini AI-powered ingredient safety checker |
+| `/analyze` | Food Label Analyzer | OCR + AI-powered ingredient safety checker |
 | `/testing-guide` | Home Testing Guide | Home adulteration tests for 10+ food categories |
 | `/awareness` | Food Safety Awareness | FSSAI tips, label tactics, adulteration awareness |
 | `/foodborne` | Foodborne Diseases | Disease encyclopedia with pathogens and treatment info |
@@ -174,12 +182,12 @@ NEWS_API_KEY=your_news_api_key_here
 
 ## 🤖 AI Integration
 
-All AI features use **Google Gemini 2.0 Flash** via a shared helper at `src/lib/gemini.ts`.
+All AI features call the shared helper at `src/lib/gemini.ts`, which sends requests through the serverless `/api/ai-chat` proxy.
 
 Key characteristics:
-- **Automatic retry with exponential backoff** for 429 (rate-limit) errors
+- **Server-side provider fallback** between Groq and Mistral when both keys are configured
 - Each page configures its own `systemPrompt`, `welcomeMessage`, and `quickReplies` — the AI is always contextually focused on the page topic
-- **Food Label Analyzer** sends OCR-extracted text to Gemini for ingredient safety scoring, additive identification, and FSSAI compliance notes
+- **Food Label Analyzer** sends OCR-extracted text to the AI proxy for ingredient safety scoring, additive identification, and FSSAI compliance notes
 - **Floating chatbot** renders via `React.createPortal` so it stays `position: fixed` on all pages regardless of parent CSS transforms
 
 ---
@@ -226,7 +234,7 @@ The output is in `dist/`. It's a standard static SPA — deploy to any static ho
 
 ### Environment Variables in Production
 
-Set `VITE_MISTRAL_API_KEY` in your hosting platform's environment variable settings. `NEWS_API_KEY` is only used by the Vite dev proxy — in production, the Alerts page falls back to GDELT and RSS automatically.
+On Vercel, set `GROQ_API_KEY` and/or `MISTRAL_API_KEY` in Project Settings -> Environment Variables, without the `VITE_` prefix. OpenFoodFacts does not require an API key. `NEWS_API_KEY` is only used by the Vite dev proxy - in production, the Alerts page falls back to GDELT and RSS automatically.
 
 ---
 
@@ -251,6 +259,6 @@ This project is open source. See [LICENSE](LICENSE) for details.
 - [FSSAI](https://fssai.gov.in) — Food Safety and Standards Authority of India
 - [Food Safety News](https://www.foodsafetynews.com) — RSS news feed
 - [GDELT Project](https://www.gdeltproject.org) — Free global news database
-- [Google Gemini](https://ai.google.dev) — AI language model
+- [Groq](https://groq.com) and [Mistral AI](https://mistral.ai) — AI providers
 - [shadcn/ui](https://ui.shadcn.com) — Component library
 - [Lucide React](https://lucide.dev) — Icon library
