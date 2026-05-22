@@ -3,6 +3,28 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { loadEnv } from "vite";
 
+function healthStubPlugin() {
+  return {
+    name: 'health-stub-plugin',
+    configureServer(server: any) {
+      server.middlewares.use('/api/health', (_req: any, res: any, next: any) => {
+        if (_req.method && _req.method !== 'GET') return next();
+
+        const body = JSON.stringify({
+          ok: true,
+          dev: true,
+          timestamp: Date.now(),
+        });
+
+        res.statusCode = 200;
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Cache-Control', 'no-store');
+        res.end(body);
+      });
+    },
+  };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
@@ -38,7 +60,7 @@ export default defineConfig(({ mode }) => {
       },
     },
   },
-  plugins: [react()].filter(Boolean),
+  plugins: [healthStubPlugin(), react()].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
