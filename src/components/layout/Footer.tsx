@@ -35,13 +35,6 @@ export default function Footer() {
             <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">
               AI-powered food safety analysis. Know exactly what's in your food and make informed choices.
             </p>
-            <p className="text-xs text-muted-foreground/70 mt-4">
-              Product data via{' '}
-              <a href="https://world.openfoodfacts.org" target="_blank" rel="noreferrer"
-                className="underline underline-offset-2 hover:text-foreground transition-colors">
-                OpenFoodFacts
-              </a>{' '}(ODbL license).
-            </p>
           </div>
 
           {/* Link columns */}
@@ -81,9 +74,6 @@ export default function Footer() {
         <div className="mt-10 pt-6 border-t border-border/50 flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-xs text-muted-foreground/70">
             © {new Date().getFullYear()} FoodSafety AI. For informational purposes only.
-          </p>
-          <p className="text-xs text-muted-foreground/50">
-            Built with React + TypeScript + server-side AI
           </p>
         </div>
       </div>

@@ -6,6 +6,7 @@ import { createWorker } from 'tesseract.js';
 import { cn } from '@/lib/utils';
 import { callGemini } from '@/lib/gemini';
 import FloatingChatBot from '@/components/FloatingChatBot';
+import AIAnalysisCard from '@/components/AIAnalysisCard';
 
 const ANALYZE_BOT_CONFIG = {
   botName: 'Product Analyst AI',
@@ -40,6 +41,7 @@ interface AnalysisResult {
   quantity?: string;
   aiSummary?: string;
   aiRecommendation?: 'safe' | 'caution' | 'avoid';
+  aiHarmfulIngredients?: Array<{ name: string; reason: string; healthEffect: string; severity: 'high' | 'medium' | 'low' }>;
 }
 
 interface OFFProduct {
@@ -127,27 +129,54 @@ function getSearchVariants(query: string) {
 }
 
 async function fetchOpenFoodFactsSearch(query: string, signal: AbortSignal) {
-  const response = await fetch(
-    `/api/openfoodfacts/search?search_terms=${encodeURIComponent(query)}&page_size=24`,
-    { signal }
-  );
-  const data = await readJsonResponse(response, 'OpenFoodFacts search failed. Please try again.');
-
-  return Array.isArray(data.products) ? data.products as OFFProduct[] : [];
+  try {
+    const response = await fetch(
+      `/api/openfoodfacts/search?search_terms=${encodeURIComponent(query)}&page_size=24`,
+      { signal }
+    );
+    const data = await readJsonResponse(response, 'OpenFoodFacts search failed. Please try again.');
+    return Array.isArray(data.products) ? data.products as OFFProduct[] : [];
+  } catch (error) {
+    if (error instanceof Error && /OpenFoodFacts search failed/i.test(error.message)) {
+      console.warn('OpenFoodFacts search unavailable for query:', query, error.message);
+      return [];
+    }
+    throw error;
+  }
 }
 
 async function readJsonResponse(response: Response, fallbackError: string) {
-  let data: any;
+  const contentType = response.headers.get('content-type') || '';
+  const text = await response.text().catch(() => '');
 
-  try {
-    data = await response.json();
-  } catch {
-    const txt = await response.text().catch(() => 'Failed to read response body');
-    throw new Error(`${fallbackError} (${txt})`);
+  let data: any = null;
+  const trimmed = text.trim();
+  const looksJson = contentType.includes('application/json') || trimmed.startsWith('{') || trimmed.startsWith('[');
+
+  if (looksJson && text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = null;
+    }
   }
 
   if (!response.ok) {
-    throw new Error(typeof data?.error === 'string' ? data.error : `${fallbackError} (status ${response.status})`);
+    const detail = typeof data?.error === 'string'
+      ? data.error
+      : looksJson
+        ? `${response.status} ${response.statusText}`.trim()
+        : `OpenFoodFacts returned a non-JSON response (${response.status})`;
+    throw new Error(`${fallbackError} (${detail})`);
+  }
+
+  if (!looksJson) {
+    const preview = trimmed.slice(0, 120).replace(/\s+/g, ' ');
+    throw new Error(`${fallbackError} (OpenFoodFacts returned HTML instead of JSON${preview ? `: ${preview}` : ''})`);
+  }
+
+  if (data == null) {
+    throw new Error(`${fallbackError} (empty or invalid JSON response)`);
   }
 
   return data;
@@ -197,41 +226,84 @@ export default function AnalyzePage() {
   const getAISummary = async (analysisResult: AnalysisResult) => {
     try {
       setAiLoading(true);
-      const prompt = `You are a food safety expert. Analyze this food product and provide a brief recommendation on whether it's safe to eat.
+
+      const ingredientsList = analysisResult.rawIngredientsText
+        ? `Full ingredient list: ${analysisResult.rawIngredientsText}`
+        : analysisResult.ingredients.length > 0
+          ? `Ingredients: ${analysisResult.ingredients.join(', ')}`
+          : 'Ingredients: Not available';
+
+      const prompt = `You are a strict food safety and toxicology expert for India. Analyze EVERY ingredient in this product for harmful substances, additives, and health risks. Be thorough — check E-numbers, preservatives, artificial colours, sweeteners, emulsifiers, and processing aids.
 
 Product: ${analysisResult.productName}
 ${analysisResult.brand ? `Brand: ${analysisResult.brand}` : ''}
-${analysisResult.nutriScore ? `Nutri-Score: ${analysisResult.nutriScore}` : ''}
-${analysisResult.novaGroup ? `NOVA Group: ${analysisResult.novaGroup}` : ''}
-Ingredients Count: ${analysisResult.ingredients.length}
-Risky Ingredients: ${analysisResult.riskyIngredients.length > 0 ? analysisResult.riskyIngredients.join(', ') : 'None detected'}
-${analysisResult.allergens ? `Allergens: ${analysisResult.allergens}` : ''}
-${analysisResult.additives?.length ? `Additives: ${analysisResult.additives.join(', ')}` : ''}
+${analysisResult.nutriScore ? `Nutri-Score: ${analysisResult.nutriScore.toUpperCase()}` : ''}
+${analysisResult.novaGroup ? `NOVA Group: ${analysisResult.novaGroup} (${analysisResult.novaGroup >= 4 ? 'Ultra-processed' : analysisResult.novaGroup >= 3 ? 'Processed' : 'Minimally processed'})` : ''}
+${ingredientsList}
+${analysisResult.allergens ? `Declared allergens: ${analysisResult.allergens}` : ''}
+${analysisResult.additives?.length ? `Detected additives/E-numbers: ${analysisResult.additives.join(', ')}` : ''}
 
-Based on this analysis, provide:
-1. A brief summary (2-3 sentences) of the product's safety profile
-2. Key concerns (if any)
-3. A recommendation: SAFE, CAUTION, or AVOID
-4. Who should be careful (if applicable)
+INSTRUCTIONS:
+- Go through EVERY ingredient and additive one by one
+- Flag anything with documented health concerns — artificial sweeteners, trans fats, high-sodium, synthetic dyes, controversial preservatives, MSG, HFCS, carrageenan, BHA, BHT, TBHQ, nitrates, sulphites, caramel colour etc.
+- For each flagged substance: explain what it is, WHY it is harmful, and what health effects occur with regular consumption
+- Severity guide: "high" = proven harm or banned in some countries (trans fat, Red 3, BHA), "medium" = concerns with regular use (aspartame, MSG, carrageenan), "low" = sensitive groups only (sulphites, caffeine, lactose)
+- Give India-specific context where relevant (FSSAI)
 
-Format your response as:
-SUMMARY: [your summary here]
-CONCERNS: [concerns or "None"]
-RECOMMENDATION: [SAFE/CAUTION/AVOID]
-WHO_SHOULD_CARE: [target groups or "General population"]`;
+Respond ONLY in this EXACT format — no markdown, no preamble, no extra text:
+SUMMARY: [2-3 sentences overall safety profile]
+CONCERNS: [specific main concerns, or "None detected"]
+RECOMMENDATION: [SAFE or CAUTION or AVOID]
+WHO_SHOULD_CARE: [specific groups or "General population"]
+HARMFUL_INGREDIENTS: [JSON array on ONE LINE. Each object must have keys: "name", "reason", "healthEffect", "severity". Use [] if none found. Example: [{"name":"Aspartame","reason":"Breaks down into methanol and phenylalanine","healthEffect":"Headaches and risk for PKU patients with regular use","severity":"medium"}]]`;
 
       const summary = await callGemini('', [], prompt);
-      
-      // Parse the recommendation
+
+      // Parse recommendation
       let recommendation: 'safe' | 'caution' | 'avoid' = 'caution';
       if (summary.includes('RECOMMENDATION: SAFE')) recommendation = 'safe';
       else if (summary.includes('RECOMMENDATION: AVOID')) recommendation = 'avoid';
 
-      setResult(prev => prev ? { ...prev, aiSummary: summary, aiRecommendation: recommendation } : null);
+      // Robust JSON parser — bracket-matching, handles multiline and trailing text
+      let aiHarmfulIngredients: AnalysisResult['aiHarmfulIngredients'] = [];
+      try {
+        const labelIdx = summary.indexOf('HARMFUL_INGREDIENTS:');
+        if (labelIdx !== -1) {
+          const afterLabel = summary.slice(labelIdx + 'HARMFUL_INGREDIENTS:'.length).trim();
+          const start = afterLabel.indexOf('[');
+          if (start !== -1) {
+            let depth = 0, end = -1;
+            for (let i = start; i < afterLabel.length; i++) {
+              if (afterLabel[i] === '[' || afterLabel[i] === '{') depth++;
+              else if (afterLabel[i] === ']' || afterLabel[i] === '}') {
+                depth--;
+                if (depth === 0 && afterLabel[i] === ']') { end = i; break; }
+              }
+            }
+            if (end !== -1) {
+              aiHarmfulIngredients = JSON.parse(afterLabel.slice(start, end + 1));
+            }
+          }
+        }
+      } catch { aiHarmfulIngredients = []; }
+
+      // Sanitise each item
+      if (Array.isArray(aiHarmfulIngredients)) {
+        aiHarmfulIngredients = aiHarmfulIngredients
+          .filter(item => item && typeof item.name === 'string' && item.name.trim())
+          .map(item => ({
+            name: String(item.name).trim(),
+            reason: String(item.reason || '').trim(),
+            healthEffect: String(item.healthEffect || '').trim(),
+            severity: (['high','medium','low'].includes(item.severity) ? item.severity : 'medium') as 'high'|'medium'|'low',
+          }));
+      } else {
+        aiHarmfulIngredients = [];
+      }
+
+      setResult(prev => prev ? { ...prev, aiSummary: summary, aiRecommendation: recommendation, aiHarmfulIngredients } : null);
     } catch (err) {
-      console.error('AI analysis error:', err);
-      const msg = err instanceof Error ? err.message : 'Failed to get AI analysis. Please try again.';
-      setError(msg);
+      console.warn('AI analysis unavailable:', err);
     } finally {
       setAiLoading(false);
     }
@@ -333,7 +405,9 @@ WHO_SHOULD_CARE: [target groups or "General population"]`;
       setSearchResults(valid);
     } catch (e: any) {
       if (e?.name === 'AbortError') return; // ignore aborted
-      setError(e instanceof Error ? e.message : 'Network error. Check your connection and try again.');
+      console.warn('Search failed:', e);
+      setSearchResults([]);
+      setError(null);
     }
     finally { setLoading(false); }
   }, []);
@@ -618,48 +692,15 @@ WHO_SHOULD_CARE: [target groups or "General population"]`;
             </div>
 
             {/* AI Analysis Section */}
-            {aiLoading ? (
-              <div className="p-6 rounded-2xl bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 shadow-sm">
-                <div className="flex items-center justify-center gap-3">
-                  <Loader2 className="h-5 w-5 animate-spin text-purple-600" />
-                  <p className="text-sm font-medium text-purple-700">Analyzing with AI...</p>
-                </div>
-              </div>
-            ) : result.aiSummary ? (
-              <div className={cn('p-6 rounded-2xl border shadow-sm', 
-                result.aiRecommendation === 'safe' 
-                  ? 'bg-emerald-50 border-emerald-200' 
-                  : result.aiRecommendation === 'avoid'
-                  ? 'bg-red-50 border-red-200'
-                  : 'bg-amber-50 border-amber-200'
-              )}>
-                <div className="flex items-start gap-3">
-                  {result.aiRecommendation === 'safe' && <CheckCircle className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />}
-                  {result.aiRecommendation === 'avoid' && <XCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />}
-                  {result.aiRecommendation === 'caution' && <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />}
-                  <div className="flex-1">
-                    <h3 className={cn('font-display font-700 mb-2',
-                      result.aiRecommendation === 'safe' 
-                        ? 'text-emerald-700' 
-                        : result.aiRecommendation === 'avoid'
-                        ? 'text-red-700'
-                        : 'text-amber-700'
-                    )}>
-                      🤖 AI Safety Analysis
-                    </h3>
-                    <div className={cn('text-sm whitespace-pre-wrap',
-                      result.aiRecommendation === 'safe' 
-                        ? 'text-emerald-800' 
-                        : result.aiRecommendation === 'avoid'
-                        ? 'text-red-800'
-                        : 'text-amber-800'
-                    )}>
-                      {result.aiSummary}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : null}
+            {(aiLoading || result.aiSummary) && (
+              <AIAnalysisCard
+                aiSummary={result.aiSummary ?? ''}
+                aiRecommendation={result.aiRecommendation ?? 'caution'}
+                aiHarmfulIngredients={result.aiHarmfulIngredients}
+                loading={aiLoading}
+                onRetry={result.aiSummary ? () => getAISummary(result) : undefined}
+              />
+            )}
 
             {/* Safety overview cards */}
             <div className="grid grid-cols-3 gap-3">

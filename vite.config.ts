@@ -7,6 +7,72 @@ function healthStubPlugin() {
   return {
     name: 'health-stub-plugin',
     configureServer(server: any) {
+      server.middlewares.use('/api/openfoodfacts/search', async (req: any, res: any, next: any) => {
+        if (req.method && req.method !== 'GET') return next();
+
+        const url = new URL('https://world.openfoodfacts.org/cgi/search.pl');
+        const requestUrl = new URL(req.url || '', 'http://localhost');
+        url.searchParams.set('search_terms', requestUrl.searchParams.get('search_terms') || '');
+        url.searchParams.set('search_simple', '1');
+        url.searchParams.set('action', 'process');
+        url.searchParams.set('json', '1');
+        url.searchParams.set('page_size', requestUrl.searchParams.get('page_size') || '24');
+        url.searchParams.set('fields', 'code,product_name,brands,ingredients_text,ingredients_text_en,ingredients_text_hi,ingredients_n,nutriscore_grade,nova_group,additives_tags,allergens,image_url,quantity');
+
+        try {
+          const upstream = await fetch(url.toString(), {
+            headers: {
+              Accept: 'application/json',
+              'User-Agent': 'FoodSafetyAi/1.0 (https://github.com/uvmanishankar/FoodSafetyAi)',
+            },
+          });
+
+          const text = await upstream.text();
+          res.statusCode = upstream.status;
+          res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/json');
+          res.setHeader('Cache-Control', 'public, max-age=60');
+          res.end(text);
+        } catch (error) {
+          res.statusCode = 502;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: 'OpenFoodFacts search proxy failed' }));
+        }
+      });
+
+      server.middlewares.use('/api/openfoodfacts/product', async (req: any, res: any, next: any) => {
+        if (req.method && req.method !== 'GET') return next();
+
+        const requestUrl = new URL(req.url || '', 'http://localhost');
+        const code = requestUrl.pathname.split('/').filter(Boolean).pop();
+        if (!code) {
+          res.statusCode = 400;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: 'Missing barcode' }));
+          return;
+        }
+
+        const upstreamUrl = `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json`;
+
+        try {
+          const upstream = await fetch(upstreamUrl, {
+            headers: {
+              Accept: 'application/json',
+              'User-Agent': 'FoodSafetyAi/1.0 (https://github.com/uvmanishankar/FoodSafetyAi)',
+            },
+          });
+
+          const text = await upstream.text();
+          res.statusCode = upstream.status;
+          res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/json');
+          res.setHeader('Cache-Control', 'public, max-age=300');
+          res.end(text);
+        } catch (error) {
+          res.statusCode = 502;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: 'OpenFoodFacts product proxy failed' }));
+        }
+      });
+
       server.middlewares.use('/api/health', (_req: any, res: any, next: any) => {
         if (_req.method && _req.method !== 'GET') return next();
 
@@ -38,16 +104,6 @@ export default defineConfig(({ mode }) => {
       overlay: false,
     },
     proxy: {
-      '/api/openfoodfacts/search': {
-        target: 'https://world.openfoodfacts.org',
-        changeOrigin: true,
-        rewrite: () => '/cgi/search.pl',
-      },
-      '/api/openfoodfacts/product': {
-        target: 'https://world.openfoodfacts.org',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/openfoodfacts\/product/, '/api/v2/product') + '.json',
-      },
       '/api/news': {
         target: 'https://newsapi.org',
         changeOrigin: true,

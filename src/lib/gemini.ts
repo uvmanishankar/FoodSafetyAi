@@ -9,6 +9,39 @@ export interface MistralMessage {
   content: string;
 }
 
+type AIProviderName = 'mistral' | 'groq';
+
+type ProviderConfig = {
+  key: string;
+  url: string;
+  model: string;
+  label: string;
+};
+
+function getProviderOrder(): AIProviderName[] {
+  const provider = (import.meta.env.VITE_AI_PROVIDER || 'auto').trim().toLowerCase();
+  if (provider === 'mistral') return ['mistral', 'groq'];
+  if (provider === 'groq') return ['groq', 'mistral'];
+  return ['groq', 'mistral'];
+}
+
+function buildProviderConfigs(): Record<AIProviderName, ProviderConfig> {
+  return {
+    mistral: {
+      key: (import.meta.env.VITE_MISTRAL_API_KEY || '').trim(),
+      url: 'https://api.mistral.ai/v1/chat/completions',
+      model: (import.meta.env.VITE_MISTRAL_MODEL || 'mistral-small-latest').trim(),
+      label: 'Mistral',
+    },
+    groq: {
+      key: (import.meta.env.VITE_GROQ_API_KEY || '').trim(),
+      url: 'https://api.groq.com/openai/v1/chat/completions',
+      model: (import.meta.env.VITE_GROQ_MODEL || 'llama-3.1-8b-instant').trim(),
+      label: 'Groq',
+    },
+  };
+}
+
 type ChatCompletionResponse = {
   choices?: Array<{
     message?: {
@@ -69,7 +102,9 @@ async function callViaServerProxy(messages: MistralMessage[]): Promise<string> {
 
   if (!response.ok) {
     const detail = await readErrorDetail(response);
-    console.warn('Server proxy /api/ai-chat returned', response.status, detail);
+    if (response.status >= 500 || response.status === 429) {
+      console.warn('Server proxy /api/ai-chat returned', response.status, detail);
+    }
     throw new Error(friendlyProxyError(detail));
   }
 
@@ -81,6 +116,51 @@ async function callViaServerProxy(messages: MistralMessage[]): Promise<string> {
   const content = data?.choices?.[0]?.message?.content?.trim();
   if (!content) {
     throw new Error('AI service returned an empty response. Please try again.');
+  }
+
+  return content;
+}
+
+async function callDirectProvider(messages: MistralMessage[], providerName: AIProviderName): Promise<string> {
+  const providers = buildProviderConfigs();
+  const provider = providers[providerName];
+
+  if (!provider.key) {
+    throw new Error(`${provider.label} client key is not configured.`);
+  }
+
+  if (!provider.url) {
+    throw new Error(`${provider.label} provider URL is invalid.`);
+  }
+
+  const response = await fetch(provider.url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${provider.key}`,
+    },
+    body: JSON.stringify({
+      messages,
+      model: provider.model,
+      temperature: 0.7,
+      max_tokens: 1200,
+      top_p: 0.9,
+    }),
+  });
+
+  if (!response.ok) {
+    const detail = await readErrorDetail(response);
+    throw new Error(friendlyProxyError(detail));
+  }
+
+  const data = await response.json().catch((error) => {
+    console.warn(`Failed to parse ${provider.label} JSON response:`, error);
+    return null;
+  }) as ChatCompletionResponse | null;
+
+  const content = data?.choices?.[0]?.message?.content?.trim();
+  if (!content) {
+    throw new Error(`${provider.label} returned an empty response. Please try again.`);
   }
 
   return content;
@@ -107,5 +187,25 @@ export async function callGemini(
 
   messages.push({ role: 'user', content: userMessage });
 
-  return callViaServerProxy(messages);
+  try {
+    return await callViaServerProxy(messages);
+  } catch (proxyError) {
+    const providers = buildProviderConfigs();
+    const providerOrder = getProviderOrder();
+    const availableProviders = providerOrder.filter((name) => providers[name].key);
+
+    if (!availableProviders.length) {
+      throw proxyError instanceof Error ? proxyError : new Error('AI service unavailable. Please try again later.');
+    }
+
+    for (const providerName of availableProviders) {
+      try {
+        return await callDirectProvider(messages, providerName);
+      } catch (error) {
+        console.warn(`Direct ${providerName} AI fallback failed:`, error);
+      }
+    }
+
+    throw proxyError instanceof Error ? proxyError : new Error('AI service unavailable. Please try again later.');
+  }
 }
