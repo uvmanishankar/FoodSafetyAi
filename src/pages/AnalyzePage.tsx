@@ -536,7 +536,6 @@ HARMFUL_INGREDIENTS: [JSON array on ONE LINE. Each object must have keys: "name"
           <div className="animate-fade-in">
             <div className="p-6 rounded-2xl bg-card border border-border shadow-sm mb-6">
               <h2 className="font-display font-700 text-lg mb-1">Search by Name</h2>
-              <p className="text-sm text-muted-foreground mb-5">Search OpenFoodFacts' database of 3M+ products.</p>
               <div className="flex gap-3">
                 <div className="relative flex-1">
                   <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

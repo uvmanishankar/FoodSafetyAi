@@ -15,7 +15,6 @@ const links: Record<string, FooterLink[]> = {
   Learn: [
     { label: 'Food Awareness',  to: '/food-awareness' },
     { label: 'Foodborne Illness', to: '/foodborne' },
-    { label: 'OpenFoodFacts', href: 'https://world.openfoodfacts.org', external: true },
   ],
 };
 
