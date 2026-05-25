@@ -165,6 +165,8 @@ function FormattedMessage({ content }: { content: string }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function FoodTestingAIAssistant(props: AIAssistantProps) {
+  // Disabled — render nothing to remove the AI Testing Assistant from testing pages.
+  return null;
   const { foodName, foodEmoji, methodName, methodType } = props;
 
   const [isOpen,      setIsOpen]      = useState(false);
