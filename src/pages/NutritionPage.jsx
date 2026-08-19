@@ -503,7 +503,7 @@ export default function NutritionPage(){
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
         <div className="flex gap-2 mb-12 flex-wrap">
           {tabs.map(tab=>(
-            <button key={tab.id} onClick={()=>setActiveTab(tab.id as any)} className={cn('px-4 py-2.5 rounded-xl font-semibold text-sm transition-all border',
+            <button key={tab.id} onClick={()=>setActiveTab(tab.id)} className={cn('px-4 py-2.5 rounded-xl font-semibold text-sm transition-all border',
               activeTab===tab.id?'bg-primary text-white border-primary':'bg-card border-border text-foreground hover:border-primary/40')}>
               {tab.label}
             </button>
@@ -521,7 +521,7 @@ export default function NutritionPage(){
                 </div>
                 <div className="flex gap-2 p-1.5 bg-muted/60 rounded-2xl border border-border/60">
                   {[['woman','👩 Woman'],['man','👨 Man'],['child','👧 Child']].map(([k,label])=>(
-                    <button key={k} onClick={()=>setPerson(k as any)} className={cn('px-4 py-2 rounded-xl text-sm font-medium transition-all',person===k?'bg-card shadow text-foreground border border-border/60':'text-muted-foreground')}>
+                    <button key={k} onClick={()=>setPerson(k)} className={cn('px-4 py-2 rounded-xl text-sm font-medium transition-all',person===k?'bg-card shadow text-foreground border border-border/60':'text-muted-foreground')}>
                       {label}
                     </button>
                   ))}
