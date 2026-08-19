@@ -8,41 +8,23 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  MessageCircle, X, Send, Loader2, Bot, User, Sparkles,
+  X, Send, Loader2, Bot, User, Sparkles,
   RotateCcw, Copy, Check, AlertCircle, RefreshCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { callGemini } from '@/lib/gemini';
-
-export interface Message {
-  role: 'user' | 'assistant';
-  content: string;
-}
-
-export interface FloatingChatBotProps {
-  botName: string;
-  subtitle: string;
-  systemPrompt: string;
-  welcomeMessage: string;
-  quickReplies: string[];
-  accentColor: string;
-  accentBg: string;
-  iconGradient: string;
-  botIconColor: string;
-  botIconBg: string;
-}
 
 /**
  * Enhanced FormattedContent component:
  * Correctly parses markdown lists, bold text, headings, horizontal rules,
  * and markdown tables with horizontal scrolling so they never overflow the widget.
  */
-function FormattedContent({ content }: { content: string }) {
+function FormattedContent({ content }) {
   const lines = content.split('\n');
 
   // Group consecutive markdown table lines
-  const elements: Array<{ type: 'table' | 'line'; data: string | string[] }> = [];
-  let tableBuffer: string[] = [];
+  const elements = [];
+  let tableBuffer = [];
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -71,7 +53,7 @@ function FormattedContent({ content }: { content: string }) {
               .filter((_, i, arr) => i > 0 && i < arr.length - 1)
           );
           // Check if row 1 is delimiter like |---|---|
-          const isDelimiter = (r: string[]) => r.every((cell) => /^[-:\s]+$/.test(cell));
+          const isDelimiter = (r) => r.every((cell) => /^[-:\s]+$/.test(cell));
           const headerRow = rows[0];
           const bodyRows = rows.slice(1).filter((r) => !isDelimiter(r));
 
@@ -105,7 +87,7 @@ function FormattedContent({ content }: { content: string }) {
           );
         }
 
-        const line = elem.data as string;
+        const line = elem.data;
         if (!line.trim()) return <div key={idx} className="h-1" />;
 
         // Horizontal separator
@@ -189,17 +171,17 @@ export default function FloatingChatBot({
   iconGradient,
   botIconColor,
   botIconBg,
-}: FloatingChatBotProps) {
+}) {
   const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [error, setError] = useState(null);
+  const [copiedIndex, setCopiedIndex] = useState(null);
   const [hasOpenedBefore, setHasOpenedBefore] = useState(false);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const messagesEndRef = useRef(null);
+  const inputRef = useRef(null);
 
   useEffect(() => {
     setMessages([
@@ -226,11 +208,11 @@ export default function FloatingChatBot({
     }
   }, [isOpen]);
 
-  const handleSend = async (textToSend?: string) => {
+  const handleSend = async (textToSend) => {
     const text = (textToSend || input).trim();
     if (!text || isLoading) return;
 
-    const userMsg: Message = { role: 'user', content: text };
+    const userMsg = { role: 'user', content: text };
     const updatedMessages = [...messages, userMsg];
 
     setMessages(updatedMessages);
@@ -242,7 +224,7 @@ export default function FloatingChatBot({
       const history = updatedMessages.slice(1, -1);
       const assistantReply = await callGemini(systemPrompt, history, text);
       setMessages((prev) => [...prev, { role: 'assistant', content: assistantReply }]);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Chat error:', err);
       setError(err?.message || 'Failed to get AI response. Please try again.');
     } finally {
@@ -250,7 +232,7 @@ export default function FloatingChatBot({
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -263,7 +245,7 @@ export default function FloatingChatBot({
     setInput('');
   };
 
-  const handleCopy = (content: string, index: number) => {
+  const handleCopy = (content, index) => {
     navigator.clipboard.writeText(content);
     setCopiedIndex(index);
     setTimeout(() => setCopiedIndex(null), 2000);

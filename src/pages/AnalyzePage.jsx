@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { ScanLine, Search, Camera, Loader2, AlertCircle, CheckCircle,
-         XCircle, Info, Package, Barcode, Upload, ArrowLeft, ChevronDown, ChevronUp,
-         Leaf, Star, Zap } from 'lucide-react';
+         XCircle, Info, Package, Barcode, Upload, ArrowLeft,
+         Leaf, Zap } from 'lucide-react';
 import { createWorker } from 'tesseract.js';
 import { cn } from '@/lib/utils';
 import { callGemini } from '@/lib/gemini';
@@ -26,41 +26,6 @@ const ANALYZE_BOT_CONFIG = {
   botIconBg: 'bg-blue-100',
 };
 
-interface AnalysisResult {
-  productName: string;
-  brand?: string;
-  ingredients: string[];
-  riskyIngredients: string[];
-  safeIngredients: string[];
-  nutriScore?: string;
-  novaGroup?: number;
-  allergens?: string;
-  additives?: string[];
-  image?: string;
-  rawIngredientsText?: string;
-  quantity?: string;
-  aiSummary?: string;
-  aiRecommendation?: 'safe' | 'caution' | 'avoid';
-  aiHarmfulIngredients?: Array<{ name: string; reason: string; healthEffect: string; severity: 'high' | 'medium' | 'low' }>;
-}
-
-interface OFFProduct {
-  code: string;
-  product_name: string;
-  brands?: string;
-  ingredients_text?: string;
-  ingredients_text_en?: string;
-  ingredients_n?: number;
-  nutriscore_grade?: string;
-  nova_group?: number;
-  additives_tags?: string[];
-  allergens?: string;
-  image_url?: string;
-  nutriments?: Record<string, number>;
-  quantity?: string;
-  [key: string]: unknown;
-}
-
 const RISKY_KEYWORDS = [
   'red 40','yellow 5','yellow 6','blue 1','blue 2','green 3',
   'bha','bht','tbhq','sodium nitrate','sodium nitrite',
@@ -71,8 +36,8 @@ const RISKY_KEYWORDS = [
   'e102','e110','e122','e124','e129','e211','e320','e321',
 ];
 
-function analyzeIngredients(text: string) {
-  if (!text) return { risky: [] as string[], safe: [] as string[], all: [] as string[] };
+function analyzeIngredients(text) {
+  if (!text) return { risky: [], safe: [], all: [] };
   const cleaned = text.toLowerCase().replace(/\(.*?\)/g,' ').replace(/[*_]/g,'');
   const all = cleaned.split(/[,;]/).map(s=>s.trim()).filter(s=>s.length>1&&s.length<60);
   const risky = all.filter(i=>RISKY_KEYWORDS.some(k=>i.includes(k)));
@@ -80,11 +45,11 @@ function analyzeIngredients(text: string) {
   return { risky, safe, all };
 }
 
-function getTextValue(value: unknown) {
+function getTextValue(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-function getIngredientText(product: OFFProduct) {
+function getIngredientText(product) {
   const direct = getTextValue(product.ingredients_text);
   if (direct) return direct;
 
@@ -96,16 +61,16 @@ function getIngredientText(product: OFFProduct) {
   return localized || '';
 }
 
-function getIngredientCount(product: OFFProduct) {
+function getIngredientCount(product) {
   if (typeof product.ingredients_n === 'number' && product.ingredients_n > 0) {
     return product.ingredients_n;
   }
   return analyzeIngredients(getIngredientText(product)).all.length;
 }
 
-function dedupeProducts(products: OFFProduct[]) {
-  const seen = new Set<string>();
-  const unique: OFFProduct[] = [];
+function dedupeProducts(products) {
+  const seen = new Set();
+  const unique = [];
 
   for (const product of products) {
     const codeKey = product.code?.trim();
@@ -123,19 +88,19 @@ function dedupeProducts(products: OFFProduct[]) {
   return unique;
 }
 
-function getSearchVariants(query: string) {
+function getSearchVariants(query) {
   const corrected = query.replace(/\bmaggie\b/g, 'maggi');
   return Array.from(new Set([query, corrected]));
 }
 
-async function fetchOpenFoodFactsSearch(query: string, signal: AbortSignal) {
+async function fetchOpenFoodFactsSearch(query, signal) {
   try {
     const response = await fetch(
       `/api/openfoodfacts/search?search_terms=${encodeURIComponent(query)}&page_size=24`,
       { signal }
     );
     const data = await readJsonResponse(response, 'OpenFoodFacts search failed. Please try again.');
-    return Array.isArray(data.products) ? data.products as OFFProduct[] : [];
+    return Array.isArray(data.products) ? data.products : [];
   } catch (error) {
     if (error instanceof Error && /OpenFoodFacts search failed/i.test(error.message)) {
       console.warn('OpenFoodFacts search unavailable for query:', query, error.message);
@@ -145,11 +110,11 @@ async function fetchOpenFoodFactsSearch(query: string, signal: AbortSignal) {
   }
 }
 
-async function readJsonResponse(response: Response, fallbackError: string) {
+async function readJsonResponse(response, fallbackError) {
   const contentType = response.headers.get('content-type') || '';
   const text = await response.text().catch(() => '');
 
-  let data: any = null;
+  let data = null;
   const trimmed = text.trim();
   const looksJson = contentType.includes('application/json') || trimmed.startsWith('{') || trimmed.startsWith('[');
 
@@ -182,7 +147,7 @@ async function readJsonResponse(response: Response, fallbackError: string) {
   return data;
 }
 
-function NutriScore({ grade }: { grade?: string }) {
+function NutriScore({ grade }) {
   if (!grade) return null;
   const g = grade.toLowerCase();
   return (
@@ -192,9 +157,9 @@ function NutriScore({ grade }: { grade?: string }) {
   );
 }
 
-function NovaGroup({ group }: { group?: number }) {
+function NovaGroup({ group }) {
   if (!group) return null;
-  const labels: Record<number,string> = { 1:'Unprocessed', 2:'Processed Culinary', 3:'Processed', 4:'Ultra-processed' };
+  const labels = { 1:'Unprocessed', 2:'Processed Culinary', 3:'Processed', 4:'Ultra-processed' };
   return (
     <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-600 nova-${group}`}>
       NOVA {group} · {labels[group]}
@@ -202,28 +167,26 @@ function NovaGroup({ group }: { group?: number }) {
   );
 }
 
-type Tab = 'barcode' | 'search' | 'ocr';
-
 export default function AnalyzePage() {
-  const [tab, setTab] = useState<Tab>('barcode');
+  const [tab, setTab] = useState('barcode');
   const [barcodeQ, setBarcodeQ] = useState('');
   const [nameQ, setNameQ] = useState('');
   const [loading, setLoading] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [ocrPct, setOcrPct] = useState(0);
   const [ocrMsg, setOcrMsg] = useState('');
-  const [result, setResult] = useState<AnalysisResult | null>(null);
-  const [searchResults, setSearchResults] = useState<OFFProduct[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const cameraRef = useRef<HTMLInputElement>(null);
-  const searchCache = useRef<Map<string, OFFProduct[]>>(new Map());
-  const abortRef = useRef<AbortController | null>(null);
+  const [result, setResult] = useState(null);
+  const [searchResults, setSearchResults] = useState([]);
+  const [error, setError] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const fileRef = useRef(null);
+  const cameraRef = useRef(null);
+  const searchCache = useRef(new Map());
+  const abortRef = useRef(null);
 
   const reset = () => { setResult(null); setSearchResults([]); setError(null); setOcrPct(0); setOcrMsg(''); };
 
-  const getAISummary = async (analysisResult: AnalysisResult) => {
+  const getAISummary = async (analysisResult) => {
     try {
       setAiLoading(true);
 
@@ -259,13 +222,11 @@ HARMFUL_INGREDIENTS: [JSON array on ONE LINE. Each object must have keys: "name"
 
       const summary = await callGemini('', [], prompt);
 
-      // Parse recommendation
-      let recommendation: 'safe' | 'caution' | 'avoid' = 'caution';
+      let recommendation = 'caution';
       if (summary.includes('RECOMMENDATION: SAFE')) recommendation = 'safe';
       else if (summary.includes('RECOMMENDATION: AVOID')) recommendation = 'avoid';
 
-      // Robust JSON parser — bracket-matching, handles multiline and trailing text
-      let aiHarmfulIngredients: AnalysisResult['aiHarmfulIngredients'] = [];
+      let aiHarmfulIngredients = [];
       try {
         const labelIdx = summary.indexOf('HARMFUL_INGREDIENTS:');
         if (labelIdx !== -1) {
@@ -287,7 +248,6 @@ HARMFUL_INGREDIENTS: [JSON array on ONE LINE. Each object must have keys: "name"
         }
       } catch { aiHarmfulIngredients = []; }
 
-      // Sanitise each item
       if (Array.isArray(aiHarmfulIngredients)) {
         aiHarmfulIngredients = aiHarmfulIngredients
           .filter(item => item && typeof item.name === 'string' && item.name.trim())
@@ -295,7 +255,7 @@ HARMFUL_INGREDIENTS: [JSON array on ONE LINE. Each object must have keys: "name"
             name: String(item.name).trim(),
             reason: String(item.reason || '').trim(),
             healthEffect: String(item.healthEffect || '').trim(),
-            severity: (['high','medium','low'].includes(item.severity) ? item.severity : 'medium') as 'high'|'medium'|'low',
+            severity: ['high','medium','low'].includes(item.severity) ? item.severity : 'medium',
           }));
       } else {
         aiHarmfulIngredients = [];
@@ -309,10 +269,10 @@ HARMFUL_INGREDIENTS: [JSON array on ONE LINE. Each object must have keys: "name"
     }
   };
 
-  const buildResult = (p: OFFProduct) => {
+  const buildResult = (p) => {
     const ingredientsText = getIngredientText(p);
     const { risky, safe, all } = analyzeIngredients(ingredientsText);
-    const newResult: AnalysisResult = {
+    const newResult = {
       productName: p.product_name || 'Unknown Product', brand: p.brands,
       ingredients: all, riskyIngredients: risky, safeIngredients: safe,
       nutriScore: p.nutriscore_grade, novaGroup: p.nova_group,
@@ -322,18 +282,16 @@ HARMFUL_INGREDIENTS: [JSON array on ONE LINE. Each object must have keys: "name"
       rawIngredientsText: ingredientsText,
     };
     setResult(newResult);
-    // Get AI analysis after setting result
     getAISummary(newResult);
   };
 
-  /** Go back from product detail to the search results list */
   const backToResults = () => {
     setResult(null);
     setError(null);
     setPreview(null);
   };
 
-  const fetchBarcode = async (code: string) => {
+  const fetchBarcode = async (code) => {
     setLoading(true); setError(null);
     try {
       const r = await fetch(`/api/openfoodfacts/product/${encodeURIComponent(code.trim())}`);
@@ -346,7 +304,7 @@ HARMFUL_INGREDIENTS: [JSON array on ONE LINE. Each object must have keys: "name"
     finally { setLoading(false); }
   };
 
-  const searchName = useCallback(async (q: string) => {
+  const searchName = useCallback(async (q) => {
     const trimmed = q.trim().toLowerCase();
     if (!trimmed) return;
     if (trimmed.length < 2) {
@@ -355,14 +313,12 @@ HARMFUL_INGREDIENTS: [JSON array on ONE LINE. Each object must have keys: "name"
       return;
     }
 
-    // Cancel any in-flight request
     if (abortRef.current) abortRef.current.abort();
     const ac = new AbortController();
     abortRef.current = ac;
 
-    // Return cached results if available
     if (searchCache.current.has(trimmed)) {
-      setSearchResults(searchCache.current.get(trimmed)!);
+      setSearchResults(searchCache.current.get(trimmed));
       setResult(null);
       return;
     }
@@ -370,13 +326,13 @@ HARMFUL_INGREDIENTS: [JSON array on ONE LINE. Each object must have keys: "name"
     setLoading(true); setError(null); setResult(null); setSearchResults([]);
     try {
       const variants = getSearchVariants(trimmed);
-      let products: OFFProduct[] = [];
-      let fallbackProducts: OFFProduct[] = [];
+      let products = [];
+      let fallbackProducts = [];
 
       for (const variant of variants) {
         const candidateProducts = await fetchOpenFoodFactsSearch(variant, ac.signal);
-        const namedProducts = candidateProducts.filter((product: OFFProduct) => product.product_name);
-        const withIngredients = namedProducts.filter((product: OFFProduct) => getIngredientCount(product) > 0);
+        const namedProducts = candidateProducts.filter((product) => product.product_name);
+        const withIngredients = namedProducts.filter((product) => getIngredientCount(product) > 0);
 
         if (!fallbackProducts.length && namedProducts.length) {
           fallbackProducts = namedProducts;
@@ -390,7 +346,7 @@ HARMFUL_INGREDIENTS: [JSON array on ONE LINE. Each object must have keys: "name"
 
       if (!products.length) products = fallbackProducts;
 
-      const withIngredients = products.filter((product: OFFProduct) => {
+      const withIngredients = products.filter((product) => {
         if (!product.product_name) return false;
         return getIngredientCount(product) > 0;
       });
@@ -403,8 +359,8 @@ HARMFUL_INGREDIENTS: [JSON array on ONE LINE. Each object must have keys: "name"
       }
       searchCache.current.set(trimmed, valid);
       setSearchResults(valid);
-    } catch (e: any) {
-      if (e?.name === 'AbortError') return; // ignore aborted
+    } catch (e) {
+      if (e?.name === 'AbortError') return;
       console.warn('Search failed:', e);
       setSearchResults([]);
       setError(null);
@@ -412,7 +368,7 @@ HARMFUL_INGREDIENTS: [JSON array on ONE LINE. Each object must have keys: "name"
     finally { setLoading(false); }
   }, []);
 
-  const doOCR = async (file: File) => {
+  const doOCR = async (file) => {
     reset(); setLoading(true); setOcrMsg('Initializing OCR engine…'); setOcrPct(5);
     try {
       const worker = await createWorker('eng', 1, {
@@ -434,25 +390,23 @@ HARMFUL_INGREDIENTS: [JSON array on ONE LINE. Each object must have keys: "name"
       const ingMatch = text.match(/ingredients?[:\s]+(.+?)(?:\n\n|\z|allergen|contains|warning)/is);
       const ingText = ingMatch ? ingMatch[1] : text;
       const { risky, safe, all } = analyzeIngredients(ingText);
-      const ocrResult: AnalysisResult = { productName:'Product from Image', ingredients:all, riskyIngredients:risky, safeIngredients:safe, rawIngredientsText:text };
+      const ocrResult = { productName:'Product from Image', ingredients:all, riskyIngredients:risky, safeIngredients:safe, rawIngredientsText:text };
       setResult(ocrResult);
       setOcrPct(100); setOcrMsg('Done!');
-      // Get AI analysis for OCR result
       await getAISummary(ocrResult);
     } catch(e) {
       setError(`OCR failed: ${e instanceof Error ? e.message : 'Unknown error'}. Try barcode or name search.`);
     } finally { setLoading(false); }
   };
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFile = (e) => {
     const f = e.target.files?.[0]; if (!f) return;
     if (!f.type.startsWith('image/')) { setError('Please upload an image file.'); return; }
-    new FileReader().onload = ev => setPreview(ev.target?.result as string);
-    const fr = new FileReader(); fr.onload = ev => setPreview(ev.target?.result as string); fr.readAsDataURL(f);
+    const fr = new FileReader(); fr.onload = ev => setPreview(ev.target?.result); fr.readAsDataURL(f);
     doOCR(f);
   };
 
-  const tabs: { id: Tab; icon: any; label: string; sub: string }[] = [
+  const tabs = [
     { id:'barcode', icon:Barcode,  label:'Barcode',    sub:'EAN / UPC' },
     { id:'search',  icon:Search,   label:'Search Name', sub:'Product name' },
     { id:'ocr',     icon:Camera,   label:'Scan Label',  sub:'OCR photo' },
@@ -670,7 +624,6 @@ HARMFUL_INGREDIENTS: [JSON array on ONE LINE. Each object must have keys: "name"
         {/* Result */}
         {result && (
           <div className="mt-8 space-y-5 animate-fade-up">
-            {/* Product card */}
             <div className="p-6 rounded-2xl bg-card border border-border shadow-sm">
               <div className="flex gap-5">
                 {result.image && (
@@ -690,7 +643,6 @@ HARMFUL_INGREDIENTS: [JSON array on ONE LINE. Each object must have keys: "name"
               </div>
             </div>
 
-            {/* AI Analysis Section */}
             {(aiLoading || result.aiSummary) && (
               <AIAnalysisCard
                 aiSummary={result.aiSummary ?? ''}
@@ -701,7 +653,6 @@ HARMFUL_INGREDIENTS: [JSON array on ONE LINE. Each object must have keys: "name"
               />
             )}
 
-            {/* Safety overview cards */}
             <div className="grid grid-cols-3 gap-3">
               <div className={cn('p-4 rounded-2xl border text-center',
                 result.riskyIngredients.length===0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200')}>
@@ -726,7 +677,6 @@ HARMFUL_INGREDIENTS: [JSON array on ONE LINE. Each object must have keys: "name"
               </div>
             </div>
 
-            {/* Risky ingredients */}
             {result.riskyIngredients.length > 0 && (
               <div className="p-5 rounded-2xl bg-red-50 border border-red-200">
                 <div className="flex items-center gap-2 mb-3">
@@ -741,7 +691,6 @@ HARMFUL_INGREDIENTS: [JSON array on ONE LINE. Each object must have keys: "name"
               </div>
             )}
 
-            {/* Allergens */}
             {result.allergens && result.allergens.replace(/,/g,'').trim().length > 3 && (
               <div className="p-5 rounded-2xl bg-amber-50 border border-amber-200">
                 <div className="flex items-center gap-2 mb-2">
@@ -752,7 +701,6 @@ HARMFUL_INGREDIENTS: [JSON array on ONE LINE. Each object must have keys: "name"
               </div>
             )}
 
-            {/* Additives */}
             {result.additives && result.additives.length > 0 && (
               <div className="p-5 rounded-2xl bg-card border border-border">
                 <div className="flex items-center gap-2 mb-3">
@@ -767,7 +715,6 @@ HARMFUL_INGREDIENTS: [JSON array on ONE LINE. Each object must have keys: "name"
               </div>
             )}
 
-            {/* Full ingredients */}
             {result.ingredients.length > 0 && (
               <div className="p-5 rounded-2xl bg-card border border-border">
                 <div className="flex items-center gap-2 mb-3">

@@ -1,12 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useState } from 'react';
 import {
-  Heart, Apple, BarChart3, Clock, ArrowRight, Bot, Send, Loader2,
-  User, Sparkles, ChevronDown, ChevronUp, CheckCircle2, Info,
-  Zap, Scale, Sun, Moon, Coffee, Star, ArrowUpRight, Flame,
-  Activity, Shield, Leaf, Search, RefreshCw, Eye, AlertTriangle, ShieldOff,
-  Package, Tag, XCircle, ShoppingCart, Megaphone, BookOpen, Globe, Home, 
-  Building2, Bell, Thermometer, Microscope,
+  Heart, Apple, BarChart3, Clock, ChevronDown, ChevronUp, CheckCircle2,
+  Sun, Moon, Coffee, AlertTriangle,
+  Package, Tag, XCircle, ShoppingCart, Activity, Eye,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import FloatingChatBot from '@/components/FloatingChatBot';
@@ -59,7 +55,7 @@ const DIET_PLANS = [
       dinner:'2 jowar/bajra roti + dal palak + sabzi',
       bedtime:'Warm water or chamomile tea (no milk)',
     },
-    keyNutrients:'Low GI: Jowar, bajra, methi, bitter gourd. High fibre for slow glucose release.',
+    keyNutrients:'Low GI carbs, high soluble fibre, chromium, bitter gourd. High fibre for slow glucose release.',
     avoid:['White rice (large portions)','Maida/refined flour','Fruit juices','Sweets and desserts','Root vegetables in excess'],
     nutrients:{calories:1600,protein:70,carbs:200,fibre:40,fat:50,sugar:15},
   },
@@ -182,7 +178,6 @@ Format with clear sections, specific food examples with portions, and practical 
   botIconBg: 'bg-emerald-100',
 };
 
-// ========== AWARENESS DATA ==========
 const TACTICS = [
   {
     id:'shrinkflation', icon:Package, color:'text-red-600', bg:'bg-red-50', border:'border-red-200',
@@ -263,7 +258,6 @@ const AWARENESS_BOT_CONFIG = {
   botIconBg: 'bg-violet-100',
 };
 
-// ========== DISEASE DATA ==========
 const DISEASES = [
   {
     id:'salmonellosis', name:'Salmonellosis', pathogen:'Salmonella bacteria', severity:'high', emoji:'🥚',
@@ -339,7 +333,7 @@ const DISEASE_BOT_CONFIG = {
   botIconBg: 'bg-red-100',
 };
 
-function TacticCard({t}:{t:typeof TACTICS[0]}){
+function TacticCard({t}) {
   const[open,setOpen]=useState(false);
   const Icon=t.icon;
   return(
@@ -375,7 +369,7 @@ function TacticCard({t}:{t:typeof TACTICS[0]}){
   );
 }
 
-function DiseaseCard({d}:{d:typeof DISEASES[0]}){
+function DiseaseCard({d}) {
   const[open,setOpen]=useState(false);
   return(
     <div className={cn('rounded-2xl border overflow-hidden transition-all',d.border,open&&'shadow-md')}>
@@ -411,8 +405,7 @@ function DiseaseCard({d}:{d:typeof DISEASES[0]}){
   );
 }
 
-// DietPlanCard component
-function DietPlanCard({plan}: {plan: any}) {
+function DietPlanCard({plan}) {
   const [expanded, setExpanded] = useState(false);
   return (
     <div className={cn('rounded-2xl border p-5 transition-all hover:shadow-md', plan.bg, plan.border)}>
@@ -425,7 +418,7 @@ function DietPlanCard({plan}: {plan: any}) {
           <p className="text-xs text-muted-foreground mb-2">{plan.tagline}</p>
           <p className="text-sm text-muted-foreground">{plan.desc}</p>
           <div className="flex flex-wrap gap-1.5 mt-3">
-            {plan.bestFor.map((b: string, i: number) => (
+            {plan.bestFor.map((b, i) => (
               <span key={i} className="px-2 py-0.5 rounded-full bg-foreground/5 text-xs font-medium text-muted-foreground">{b}</span>
             ))}
           </div>
@@ -441,7 +434,7 @@ function DietPlanCard({plan}: {plan: any}) {
               {Object.entries(plan.plan).map(([time, meal]) => (
                 <div key={time} className="flex gap-2">
                   <span className="font-medium capitalize text-foreground">{time.replace(/([A-Z])/g, ' $1').trim()}:</span>
-                  <span>{meal as string}</span>
+                  <span>{meal}</span>
                 </div>
               ))}
             </div>
@@ -453,7 +446,7 @@ function DietPlanCard({plan}: {plan: any}) {
           <div>
             <h4 className="text-xs font-700 uppercase tracking-widest text-muted-foreground mb-2">Foods to Avoid</h4>
             <div className="flex flex-wrap gap-1.5">
-              {plan.avoid.map((a: string, i: number) => (
+              {plan.avoid.map((a, i) => (
                 <span key={i} className="px-2 py-1 rounded-lg bg-red-50 text-red-700 text-xs font-medium border border-red-200">{a}</span>
               ))}
             </div>
@@ -465,9 +458,9 @@ function DietPlanCard({plan}: {plan: any}) {
 }
 
 export default function NutritionPage(){
-  const[person,setPerson]=useState<'man'|'woman'|'child'>('woman');
-  const[activeTab,setActiveTab]=useState<'nutrition'|'awareness'|'diseases'>('nutrition');
-  const[activeNutrient,setActiveNutrient]=useState<string|null>(null);
+  const[person,setPerson]=useState('woman');
+  const[activeTab,setActiveTab]=useState('nutrition');
+  const[activeNutrient,setActiveNutrient]=useState(null);
 
   const tabs=[
     {id:'nutrition', label:'🥗 Nutrition & Diet', icon:Apple},
@@ -488,7 +481,7 @@ export default function NutritionPage(){
               </div>
               <h1 className="font-display text-5xl sm:text-6xl font-800 text-foreground mb-4 leading-[1.1]">
                 Nutrition,
-                <span className="block bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">Awareness & Safety</span>
+                <span className="block bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">Awareness &amp; Safety</span>
               </h1>
               <p className="text-lg text-muted-foreground leading-relaxed mb-8 max-w-xl">
                 Complete guide to eating smart: personalized nutrition plans, food awareness tactics, and foodborne disease prevention. Everything you need for better health.
@@ -508,7 +501,6 @@ export default function NutritionPage(){
       </section>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
-        {/* Tab Navigation */}
         <div className="flex gap-2 mb-12 flex-wrap">
           {tabs.map(tab=>(
             <button key={tab.id} onClick={()=>setActiveTab(tab.id as any)} className={cn('px-4 py-2.5 rounded-xl font-semibold text-sm transition-all border',
@@ -518,7 +510,6 @@ export default function NutritionPage(){
           ))}
         </div>
 
-        {/* NUTRITION TAB */}
         {activeTab==='nutrition'&&(
           <div className="space-y-14">
             <FloatingChatBot {...NUTRITION_BOT_CONFIG}/>
@@ -529,8 +520,8 @@ export default function NutritionPage(){
                   <p className="text-sm text-muted-foreground mt-1">Based on ICMR dietary reference values</p>
                 </div>
                 <div className="flex gap-2 p-1.5 bg-muted/60 rounded-2xl border border-border/60">
-                  {([['woman','👩 Woman'],['man','👨 Man'],['child','👧 Child']] as const).map(([k,label])=>(
-                    <button key={k} onClick={()=>setPerson(k)} className={cn('px-4 py-2 rounded-xl text-sm font-medium transition-all',person===k?'bg-card shadow text-foreground border border-border/60':'text-muted-foreground')}>
+                  {[['woman','👩 Woman'],['man','👨 Man'],['child','👧 Child']].map(([k,label])=>(
+                    <button key={k} onClick={()=>setPerson(k as any)} className={cn('px-4 py-2 rounded-xl text-sm font-medium transition-all',person===k?'bg-card shadow text-foreground border border-border/60':'text-muted-foreground')}>
                       {label}
                     </button>
                   ))}
@@ -585,7 +576,6 @@ export default function NutritionPage(){
           </div>
         )}
 
-        {/* AWARENESS TAB */}
         {activeTab==='awareness'&&(
           <div className="space-y-12">
             <FloatingChatBot {...AWARENESS_BOT_CONFIG}/>
@@ -613,7 +603,6 @@ export default function NutritionPage(){
           </div>
         )}
 
-        {/* DISEASE TAB */}
         {activeTab==='diseases'&&(
           <div className="space-y-12">
             <div className="p-5 rounded-2xl bg-red-600 text-white flex items-center gap-4">

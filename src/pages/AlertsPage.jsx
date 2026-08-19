@@ -3,7 +3,7 @@ import {
   Bell, Loader2, AlertCircle, Clock, ExternalLink, Sparkles,
   Newspaper, RefreshCw, Search, Globe, ShieldAlert, Scale,
   AlertTriangle, Ban, Utensils, FlaskConical, Tag, FileText,
-  Siren, ChevronDown, ChevronUp, ShieldCheck,
+  Siren, ShieldCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { callGemini } from '@/lib/gemini';
@@ -26,21 +26,6 @@ const ALERTS_BOT_CONFIG = {
   botIconColor: 'text-amber-600',
   botIconBg: 'bg-amber-100',
 };
-// ─── Types ──────────────────────────────────────────────────────────────────
-
-interface Article {
-  title: string;
-  description: string | null;
-  url: string;
-  urlToImage: string | null;
-  publishedAt: string;
-  source: { name: string };
-  author: string | null;
-}
-
-type TabKey = 'alerts' | 'regulations';
-
-// ─── Category Queries ───────────────────────────────────────────────────────
 
 const ALERT_CATEGORIES = [
   { label: 'All Alerts', query: '(food safety OR food recall OR food contamination OR food adulteration OR food poisoning) AND (India OR FSSAI OR "Food Safety and Standards Authority of India")', icon: ShieldAlert, color: 'text-red-600' },
@@ -95,9 +80,7 @@ const INDIA_SIGNAL_TERMS = [
   'state food safety',
 ];
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
-
-function timeAgo(dateStr: string) {
+function timeAgo(dateStr) {
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 60) return `${mins}m ago`;
@@ -108,15 +91,15 @@ function timeAgo(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-function articleText(a: Article) {
+function articleText(a) {
   return `${a.title || ''} ${a.description || ''} ${a.source?.name || ''}`.toLowerCase();
 }
 
-function countHits(text: string, terms: string[]) {
+function countHits(text, terms) {
   return terms.reduce((n, t) => (text.includes(t) ? n + 1 : n), 0);
 }
 
-function relevanceScore(article: Article, isRegulation: boolean) {
+function relevanceScore(article, isRegulation) {
   const text = articleText(article);
   const signalTerms = isRegulation ? REGULATION_SIGNAL_TERMS : ALERT_SIGNAL_TERMS;
   let score = 0;
@@ -132,8 +115,8 @@ function relevanceScore(article: Article, isRegulation: boolean) {
   return score;
 }
 
-function normalizeAndRankArticles(rawArticles: Article[], isRegulation: boolean) {
-  const unique = new Map<string, Article>();
+function normalizeAndRankArticles(rawArticles, isRegulation) {
+  const unique = new Map();
 
   for (const article of rawArticles || []) {
     if (!article?.title || article.title === '[Removed]' || !article?.url) continue;
@@ -158,8 +141,6 @@ function normalizeAndRankArticles(rawArticles: Article[], isRegulation: boolean)
   );
 }
 
-// GDELT queries: plain space-separated keywords only — no quotes, no OR.
-// Quoted phrases and OR operators cause GDELT's query parser to return empty results.
 const GDELT_ALERT_QUERIES = [
   'food safety recall contamination india',
   'food contamination adulteration india fssai',
@@ -177,23 +158,20 @@ const GDELT_REGULATION_QUERIES = [
   'food testing accreditation standard india fssai',
 ];
 
-// GDELT seendate compact format: "20260317T120000Z" → standard ISO-8601
-function parseGdeltDate(seendate?: string): string {
+function parseGdeltDate(seendate) {
   if (!seendate) return new Date().toISOString();
   const m = seendate.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/);
   if (m) return `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}Z`;
   try { return new Date(seendate).toISOString(); } catch { return new Date().toISOString(); }
 }
 
-type GdeltRawArticle = { title?: string; seendate?: string; url?: string; socialimage?: string; domain?: string; sourcecountry?: string };
-
-function mapGdeltArticles(articles: GdeltRawArticle[]): Article[] {
+function mapGdeltArticles(articles) {
   return (articles || [])
     .filter(a => a?.title && a?.url)
     .map(a => ({
-      title: a.title!,
+      title: a.title,
       description: null,
-      url: a.url!,
+      url: a.url,
       urlToImage: a.socialimage || null,
       publishedAt: parseGdeltDate(a.seendate),
       source: { name: a.domain || a.sourcecountry || 'GDELT' },
@@ -201,18 +179,17 @@ function mapGdeltArticles(articles: GdeltRawArticle[]): Article[] {
     }));
 }
 
-async function fetchGdeltFallback(catIdx: number, isRegulation: boolean): Promise<Article[]> {
+async function fetchGdeltFallback(catIdx, isRegulation) {
   const queries = isRegulation ? GDELT_REGULATION_QUERIES : GDELT_ALERT_QUERIES;
   const specific = queries[Math.min(catIdx, queries.length - 1)];
   const broad = isRegulation ? 'fssai food regulation india' : 'food safety india';
 
-  // Run category-specific and broad queries in parallel for maximum coverage
   const [specRes, broadRes] = await Promise.allSettled([
     fetch(`https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(specific)}&mode=ArtList&maxrecords=50&sort=datedesc&format=json`),
     fetch(`https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(broad)}&mode=ArtList&maxrecords=50&sort=datedesc&format=json`),
   ]);
 
-  const allMapped: Article[] = [];
+  const allMapped = [];
   for (const res of [specRes, broadRes]) {
     if (res.status !== 'fulfilled' || !res.value.ok) continue;
     try {
@@ -224,15 +201,13 @@ async function fetchGdeltFallback(catIdx: number, isRegulation: boolean): Promis
   return normalizeAndRankArticles(allMapped, isRegulation);
 }
 
-// ─── RSS Feeds ───────────────────────────────────────────────────────────────
 const RSS_FEEDS = [
   { url: 'https://www.foodsafetynews.com/feed/', title: 'Food Safety News' },
   { url: 'https://efsa.europa.eu/en/rss/rss.xml', title: 'EFSA' },
 ];
 
-// Parse raw RSS/XML string with the browser's built-in DOMParser
-function parseRSSXml(xmlText: string, feedTitle: string): Article[] {
-  const articles: Article[] = [];
+function parseRSSXml(xmlText, feedTitle) {
+  const articles = [];
   try {
     const doc = new DOMParser().parseFromString(xmlText, 'text/xml');
     doc.querySelectorAll('item').forEach(item => {
@@ -259,14 +234,13 @@ function parseRSSXml(xmlText: string, feedTitle: string): Article[] {
   return articles;
 }
 
-async function fetchRSSFallback(isRegulation: boolean): Promise<Article[]> {
-  const allArticles: Article[] = [];
+async function fetchRSSFallback(isRegulation) {
+  const allArticles = [];
 
   await Promise.allSettled(
     RSS_FEEDS.map(async ({ url, title }) => {
-      let items: Article[] = [];
+      let items = [];
 
-      // Attempt 1: rss2json.com (structured JSON, easiest to consume)
       try {
         const r = await fetch(
           `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(url)}&count=30`
@@ -274,15 +248,15 @@ async function fetchRSSFallback(isRegulation: boolean): Promise<Article[]> {
         if (r.ok) {
           const d = await r.json();
           if (d.status === 'ok' && Array.isArray(d.items) && d.items.length > 0) {
-            const feedName: string = d.feed?.title || title;
+            const feedName = d.feed?.title || title;
             items = d.items
-              .filter((i: { title?: string; link?: string }) => i.title && i.link)
-              .map((i: { title: string; link: string; description?: string; enclosure?: { link?: string }; thumbnail?: string; pubDate?: string; author?: string }) => ({
+              .filter(i => i.title && i.link)
+              .map(i => ({
                 title: i.title,
-                description: i.description ? (i.description as string).replace(/<[^>]*>/g, '').slice(0, 300) : null,
+                description: i.description ? i.description.replace(/<[^>]*>/g, '').slice(0, 300) : null,
                 url: i.link,
                 urlToImage: i.enclosure?.link || i.thumbnail || null,
-                publishedAt: i.pubDate ? (() => { try { return new Date(i.pubDate!).toISOString(); } catch { return new Date().toISOString(); } })() : new Date().toISOString(),
+                publishedAt: i.pubDate ? (() => { try { return new Date(i.pubDate).toISOString(); } catch { return new Date().toISOString(); } })() : new Date().toISOString(),
                 source: { name: feedName },
                 author: i.author || null,
               }));
@@ -290,7 +264,6 @@ async function fetchRSSFallback(isRegulation: boolean): Promise<Article[]> {
         }
       } catch { /* fall through to next proxy */ }
 
-      // Attempt 2: allorigins.win CORS proxy + native DOMParser XML parsing
       if (items.length === 0) {
         try {
           const r = await fetch(
@@ -298,7 +271,7 @@ async function fetchRSSFallback(isRegulation: boolean): Promise<Article[]> {
           );
           if (r.ok) {
             const d = await r.json();
-            if (d?.contents) items = parseRSSXml(d.contents as string, title);
+            if (d?.contents) items = parseRSSXml(d.contents, title);
           }
         } catch { /* ignore */ }
       }
@@ -310,9 +283,7 @@ async function fetchRSSFallback(isRegulation: boolean): Promise<Article[]> {
   return normalizeAndRankArticles(allArticles, isRegulation);
 }
 
-// ─── Article Card Component (with image) ────────────────────────────────────
-
-function ArticleCard({ article, showSummarize }: { article: Article; showSummarize?: boolean }) {
+function ArticleCard({ article, showSummarize }) {
   const [summary, setSummary] = useState('');
   const [summarizing, setSummarizing] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -343,20 +314,18 @@ function ArticleCard({ article, showSummarize }: { article: Article; showSummari
       rel="noreferrer"
       className="group flex flex-col rounded-2xl bg-card border border-border overflow-hidden hover:border-primary/30 hover:shadow-lg transition-all"
       onClick={e => {
-        // Prevent navigation if clicking AI summarize
-        if ((e.target as HTMLElement).closest('[data-summarize]')) e.preventDefault();
+        if (e.target.closest('[data-summarize]')) e.preventDefault();
       }}
     >
-      {/* Image */}
       {article.urlToImage && (
         <div className="relative h-44 overflow-hidden bg-muted">
           <img
             src={article.urlToImage}
             alt=""
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            onError={(e) => { e.target.style.display = 'none'; }}
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
           <span className="absolute bottom-2 left-3 text-[10px] font-700 px-2 py-1 rounded-lg bg-black/50 text-white/90 backdrop-blur-sm flex items-center gap-1">
             <Globe className="h-2.5 w-2.5" />
             {article.source.name}
@@ -380,7 +349,6 @@ function ArticleCard({ article, showSummarize }: { article: Article; showSummari
           </p>
         )}
 
-        {/* AI Summarize button */}
         {showSummarize && (
           <div className="mt-3" data-summarize>
             <button
@@ -426,28 +394,23 @@ function ArticleCard({ article, showSummarize }: { article: Article; showSummari
   );
 }
 
-// ─── Main Page ──────────────────────────────────────────────────────────────
-
 export default function AlertsPage() {
-  const [tab, setTab] = useState<TabKey>('alerts');
+  const [tab, setTab] = useState('alerts');
   const [alertCat, setAlertCat] = useState(0);
   const [regCat, setRegCat] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Live news state
-  const [articles, setArticles] = useState<Article[]>([]);
+  const [articles, setArticles] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState(null);
 
-  // Fetch live news: NewsAPI (primary) → GDELT + RSS feeds (parallel fallback)
-  const fetchNews = async (catIdx: number, isRegulation: boolean) => {
+  const fetchNews = async (catIdx, isRegulation) => {
     setLoading(true);
     setError(null);
     const cats = isRegulation ? REGULATION_CATEGORIES : ALERT_CATEGORIES;
 
     try {
-      // ── Primary: NewsAPI via Vite dev proxy (dev only) ───────────────────
-      let primaryArticles: Article[] = [];
+      let primaryArticles = [];
       if (!import.meta.env.PROD) {
         try {
           const q = encodeURIComponent(cats[catIdx].query);
@@ -459,7 +422,6 @@ export default function AlertsPage() {
             const data = await res.json();
             if (data.status === 'ok') {
               primaryArticles = normalizeAndRankArticles(data.articles || [], isRegulation);
-              // Broaden query if too few domain-restricted results
               if (primaryArticles.length < 6) {
                 const broadRes = await fetch(
                   `/api/news/v2/everything?q=${q}&searchIn=title,description&language=en&sortBy=publishedAt&from=${encodeURIComponent(from)}&pageSize=40`
@@ -483,7 +445,6 @@ export default function AlertsPage() {
         return;
       }
 
-      // ── Fallback: GDELT + RSS feeds in parallel ──────────────────────────
       const [gdeltResult, rssResult] = await Promise.allSettled([
         fetchGdeltFallback(catIdx, isRegulation),
         fetchRSSFallback(isRegulation),
@@ -492,7 +453,6 @@ export default function AlertsPage() {
       const gdelt = gdeltResult.status === 'fulfilled' ? gdeltResult.value : [];
       const rss = rssResult.status === 'fulfilled' ? rssResult.value : [];
 
-      // Merge all sources — NewsAPI partial results + GDELT + RSS
       const combined = normalizeAndRankArticles(
         [...primaryArticles, ...gdelt, ...rss],
         isRegulation
@@ -512,7 +472,6 @@ export default function AlertsPage() {
     fetchNews(tab === 'alerts' ? alertCat : regCat, tab === 'regulations');
   }, [tab, alertCat, regCat]);
 
-  // Filter articles by search
   const filtered = articles.filter(a => {
     if (!searchTerm.trim()) return true;
     const s = searchTerm.toLowerCase();
@@ -521,14 +480,12 @@ export default function AlertsPage() {
 
   return (
     <div className="page-wrapper pt-12">
-
-      {/* ── HERO ────────────────────────────────────────────────────────────── */}
+      {/* HERO */}
       <section className="relative gradient-hero border-b border-border/60 overflow-hidden">
         <div className="hero-orb w-[500px] h-[500px] bg-amber-500/6 top-[-100px] right-[-100px]" />
         <div className="absolute inset-0 bg-dots opacity-30 pointer-events-none" />
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-16">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
-            {/* Text */}
             <div>
               <div className="inline-flex items-center gap-2 mb-5 px-3.5 py-2 rounded-full
                               border border-amber-300/60 bg-amber-50/80 text-amber-700 text-xs font-semibold">
@@ -559,7 +516,6 @@ export default function AlertsPage() {
               </div>
             </div>
 
-            {/* Hero Image */}
             <div className="hidden lg:block relative pb-6 pl-6">
               <div className="relative rounded-3xl overflow-hidden shadow-2xl border border-border/40">
                 <img
@@ -593,10 +549,8 @@ export default function AlertsPage() {
         </div>
       </section>
 
-      {/* ── CONTENT ─────────────────────────────────────────────────────────── */}
+      {/* CONTENT */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
-
-        {/* Tab Switcher */}
         <div className="flex items-center gap-1 p-1.5 bg-muted/60 rounded-2xl border border-border/60 mb-8 w-fit">
           <button
             onClick={() => { setTab('alerts'); setSearchTerm(''); }}
@@ -624,10 +578,8 @@ export default function AlertsPage() {
           </button>
         </div>
 
-        {/* ═══ ALERTS TAB ═══ */}
         {tab === 'alerts' && (
           <div className="space-y-8">
-            {/* Filters */}
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex gap-2 flex-wrap flex-1">
                 {ALERT_CATEGORIES.map((cat, i) => {
@@ -660,7 +612,6 @@ export default function AlertsPage() {
               </div>
             </div>
 
-            {/* Header */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Newspaper className="h-5 w-5 text-red-600" />
@@ -682,15 +633,12 @@ export default function AlertsPage() {
               </button>
             </div>
 
-            {/* Content */}
             <NewsGrid articles={filtered} loading={loading} error={error} onRetry={() => fetchNews(alertCat, false)} showSummarize />
           </div>
         )}
 
-        {/* ═══ REGULATION NEWS TAB ═══ */}
         {tab === 'regulations' && (
           <div className="space-y-8">
-            {/* Filters */}
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex gap-2 flex-wrap flex-1">
                 {REGULATION_CATEGORIES.map((cat, i) => {
@@ -723,7 +671,6 @@ export default function AlertsPage() {
               </div>
             </div>
 
-            {/* AI Summarizer Banner */}
             <div className="p-5 rounded-2xl bg-gradient-to-r from-primary/10 via-emerald-500/8 to-teal-500/6 border border-primary/20">
               <div className="flex items-start gap-4">
                 <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-emerald-500 flex items-center justify-center shrink-0 shadow-glow">
@@ -738,7 +685,6 @@ export default function AlertsPage() {
               </div>
             </div>
 
-            {/* Header */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Newspaper className="h-5 w-5 text-primary" />
@@ -760,19 +706,14 @@ export default function AlertsPage() {
               </button>
             </div>
 
-            {/* Content */}
             <NewsGrid articles={filtered} loading={loading} error={error} onRetry={() => fetchNews(regCat, true)} showSummarize />
           </div>
         )}
-
-        {/* Attribution removed per request */}
       </div>
       <FloatingChatBot {...ALERTS_BOT_CONFIG} />
     </div>
   );
 }
-
-// ─── Reusable News Grid ─────────────────────────────────────────────────────
 
 function NewsGrid({
   articles,
@@ -780,12 +721,6 @@ function NewsGrid({
   error,
   onRetry,
   showSummarize,
-}: {
-  articles: Article[];
-  loading: boolean;
-  error: string | null;
-  onRetry: () => void;
-  showSummarize?: boolean;
 }) {
   if (loading) {
     return (
@@ -798,25 +733,23 @@ function NewsGrid({
 
   if (error) {
     return (
-      <div className="flex items-start gap-3 p-5 rounded-2xl bg-destructive/7 border border-destructive/20">
-        <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-        <div>
-          <p className="text-sm font-semibold text-destructive">Could not fetch live news</p>
-          <p className="text-xs text-destructive/80 mt-1">{error}</p>
-          <button
-            onClick={onRetry}
-            className="mt-3 text-xs font-semibold px-3 py-1.5 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors"
-          >
-            Try again
-          </button>
-        </div>
+      <div className="flex flex-col items-center justify-center py-12 text-center">
+        <AlertCircle className="h-10 w-10 text-destructive mb-3" />
+        <p className="font-display font-700 text-foreground text-lg mb-1">Failed to load news</p>
+        <p className="text-sm text-muted-foreground max-w-sm mb-4">{error}</p>
+        <button
+          onClick={onRetry}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl gradient-primary text-white text-sm font-semibold shadow-glow hover:opacity-90 transition-all"
+        >
+          <RefreshCw className="h-4 w-4" /> Try Again
+        </button>
       </div>
     );
   }
 
   if (articles.length === 0) {
     return (
-      <div className="flex flex-col items-center py-16 text-center">
+      <div className="flex flex-col items-center justify-center py-12 text-center">
         <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center mb-4">
           <Newspaper className="h-6 w-6 text-muted-foreground" />
         </div>

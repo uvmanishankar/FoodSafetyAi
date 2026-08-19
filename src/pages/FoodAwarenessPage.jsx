@@ -58,7 +58,7 @@ const TACTICS = [
     title:'Front-of-Pack Illusions', subtitle:'Strategic colours and symbols that falsely signal health', severity:'Medium',
     image:'https://images.unsplash.com/photo-1604719312566-8912e9227c6a?w=600&h=340&fit=crop&q=80',
     description:'Front-of-pack design is psychological manipulation. Green packaging, leaf imagery, and health stars are chosen by marketing teams — not nutritionists. Products with 5-star imagery may have FSSAI nutrition ratings of 1.5.',
-    examples:['Green packaging for products with no environmental benefit','Leaves and nature imagery on ultra-processed cereals','"Doctor recommended" with no verification','"0g Trans Fat" stamp next to hidden saturated fat','Children\'s cereals with cartoon characters suggesting fun/health'],
+    examples:['Green packaging on sugary granola to suggest environmental benefit','Leaves and nature imagery on ultra-processed cereals','"Doctor recommended" with no verification','"0g Trans Fat" stamp next to hidden saturated fat','Children\'s cereals with cartoon characters suggesting fun/health'],
     howToSpot:'Treat all front-of-pack imagery as advertising. The legally required information is on the back: ingredients list and nutrition table.',
     impact:'Front-of-pack health imagery increases purchase intent by 35–60% regardless of actual nutrition.',
     legal:'FSSAI has proposed traffic-light labelling but industry lobbying has delayed mandatory implementation.',
@@ -157,9 +157,9 @@ const AWARENESS_BOT_CONFIG = {
   botIconBg: 'bg-violet-100',
 };
 
-function TacticCard({t}:{t:typeof TACTICS[0]}){
+function TacticCard({t}){
   const[open,setOpen]=useState(false);
-  const contentRef=useRef<HTMLDivElement>(null);
+  const contentRef=useRef(null);
   const[contentHeight,setContentHeight]=useState(0);
   const Icon=t.icon;
   const iconBg=t.bg.replace('bg-','bg-').replace('-50','-100');
@@ -205,7 +205,6 @@ function TacticCard({t}:{t:typeof TACTICS[0]}){
         }}
       >
         <div ref={contentRef} className="px-5 pb-6 pt-4 border-t border-border/40 bg-card space-y-5">
-          {/* Tactic Image */}
           <div className="relative rounded-xl overflow-hidden h-48 sm:h-56">
             <img src={t.image} alt={t.title} className="w-full h-full object-cover" loading="lazy"/>
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent"/>
@@ -240,7 +239,7 @@ function TacticCard({t}:{t:typeof TACTICS[0]}){
 
 export default function FoodAwarenessPage(){
   const[search,setSearch]=useState('');
-  const[sev,setSev]=useState<string|null>(null);
+  const[sev,setSev]=useState(null);
   const filtered=TACTICS.filter(t=>(!sev||t.severity===sev)&&(t.title.toLowerCase().includes(search.toLowerCase())||t.description.toLowerCase().includes(search.toLowerCase())));
   return(
     <div className="page-wrapper pt-12">
@@ -268,7 +267,6 @@ export default function FoodAwarenessPage(){
                 ))}
               </div>
             </div>
-            {/* Hero Image */}
             <div className="hidden lg:block relative pb-6 pl-6">
               <div className="relative rounded-3xl overflow-hidden shadow-2xl border border-border/40">
                 <img
@@ -302,9 +300,7 @@ export default function FoodAwarenessPage(){
         </div>
       </section>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12 space-y-12">
-        {/* Floating AI Awareness Assistant */}
         <FloatingChatBot {...AWARENESS_BOT_CONFIG} />
-        {/* Label Reading Guide */}
         <div>
           <div className="flex items-center gap-3 mb-6">
             <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center"><BookOpen className="h-5 w-5 text-emerald-700"/></div>
@@ -326,7 +322,6 @@ export default function FoodAwarenessPage(){
             ))}
           </div>
         </div>
-        {/* Tactics */}
         <div>
           <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
             <div>

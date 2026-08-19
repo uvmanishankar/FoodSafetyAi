@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   Home, Building2, ChevronRight, ChevronDown, CheckCircle2,
   AlertTriangle, FlaskConical, Clock, Package, Droplets,
-  Egg, Wheat, Leaf, Fish, Apple, Coffee, ArrowRight,
+  Egg, Wheat, Leaf, Apple, Coffee, ArrowRight,
   Star, Info, ShieldCheck, Microscope, ThumbsUp, ThumbsDown, Search, Bell,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -28,43 +28,7 @@ const TESTING_BOT_CONFIG = {
   botIconBg: 'bg-teal-100',
 };
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface TestStep {
-  step: number;
-  title: string;
-  desc: string;
-  tip?: string;
-  result?: { pass: string; fail: string };
-}
-
-interface TestMethod {
-  id: string;
-  name: string;
-  difficulty: 'Easy' | 'Medium' | 'Advanced';
-  time: string;
-  accuracy: 'High' | 'Medium' | 'Low';
-  what: string; // what it detects
-  materials: string[];
-  steps: TestStep[];
-}
-
-interface FoodItem {
-  id: string;
-  name: string;
-  emoji: string;
-  icon: any;
-  iconBg: string;
-  iconColor: string;
-  tagline: string;
-  commonAdulterants: string[];
-  homeMethods: TestMethod[];
-  labMethods: TestMethod[];
-}
-
-// ─── Data ─────────────────────────────────────────────────────────────────────
-
-const FOOD_ITEMS: FoodItem[] = [
+const FOOD_ITEMS = [
   {
     id: 'milk',
     name: 'Milk',
@@ -693,7 +657,6 @@ const FOOD_ITEMS: FoodItem[] = [
   },
 ];
 
-// ─── Difficulty & Accuracy badge styles ──────────────────────────────────────
 const DIFF_STYLE = {
   Easy:     'bg-emerald-50 text-emerald-700 border-emerald-200',
   Medium:   'bg-amber-50 text-amber-700 border-amber-200',
@@ -705,8 +668,7 @@ const ACC_STYLE = {
   Low:    'bg-muted text-muted-foreground border-border',
 };
 
-// ─── Step Card ────────────────────────────────────────────────────────────────
-function StepCard({ step, isLast }: { step: TestStep; isLast: boolean }) {
+function StepCard({ step, isLast }) {
   return (
     <div className="flex gap-4">
       <div className="flex flex-col items-center">
@@ -741,14 +703,7 @@ function StepCard({ step, isLast }: { step: TestStep; isLast: boolean }) {
   );
 }
 
-// ─── Method Card ──────────────────────────────────────────────────────────────
-function MethodCard({
-  method, type, food,
-}: {
-  method: TestMethod;
-  type: 'home' | 'lab';
-  food: FoodItem;
-}) {
+function MethodCard({ method, type, food }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -757,7 +712,6 @@ function MethodCard({
       type === 'home' ? 'border-emerald-200 bg-emerald-50/30' : 'border-blue-200 bg-blue-50/20',
       open && (type === 'home' ? 'shadow-md' : 'shadow-md')
     )}>
-      {/* Header */}
       <button
         onClick={() => setOpen(o => !o)}
         className="w-full flex items-start gap-4 p-5 text-left hover:bg-foreground/3 transition-colors"
@@ -794,10 +748,8 @@ function MethodCard({
         </div>
       </button>
 
-      {/* Expanded content */}
       {open && (
         <div className="px-5 pb-6 border-t border-border/50 pt-5 animate-fade-in">
-          {/* Materials */}
           <div className="mb-6">
             <h4 className="font-display font-700 text-foreground text-sm mb-3 flex items-center gap-2">
               <Package className="h-4 w-4 text-primary" />
@@ -812,7 +764,6 @@ function MethodCard({
             </div>
           </div>
 
-          {/* Steps */}
           <div>
             <h4 className="font-display font-700 text-foreground text-sm mb-4 flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4 text-primary" />
@@ -825,7 +776,6 @@ function MethodCard({
             </div>
           </div>
 
-          {/* AI Assistant + Ingredient Insights */}
           <FoodTestingAIAssistant
             foodName={food.name}
             foodEmoji={food.emoji}
@@ -842,10 +792,9 @@ function MethodCard({
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function FoodTestingPage() {
-  const [selectedFood, setSelectedFood] = useState<FoodItem | null>(null);
-  const [activeMethod, setActiveMethod] = useState<'home' | 'lab'>('home');
+  const [selectedFood, setSelectedFood] = useState(null);
+  const [activeMethod, setActiveMethod] = useState('home');
   const [search, setSearch] = useState('');
 
   const filtered = FOOD_ITEMS.filter(f =>
@@ -855,19 +804,15 @@ export default function FoodTestingPage() {
 
   return (
     <div className="page-wrapper pt-12">
-
-      {/* ── HERO ───────────────────────────────────────────────────────────── */}
       <section className="relative gradient-hero border-b border-border/60 overflow-hidden">
-        <div className="hero-orb w-[500px] h-[500px] bg-primary/8 top-[-100px] right-[-100px]" />
+        <div className="hero-orb w-[500px] h-[500px] bg-emerald-500/6 top-[-100px] right-[-100px]" />
         <div className="absolute inset-0 bg-dots opacity-30 pointer-events-none" />
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 py-16">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
-            {/* Text */}
             <div>
-              <div className="inline-flex items-center gap-2 mb-5 px-3.5 py-2 rounded-full
-                              border border-primary/25 bg-primary/7 text-primary text-xs font-semibold">
+              <div className="inline-flex items-center gap-2 mb-5 px-3.5 py-2 rounded-full border border-emerald-300/60 bg-emerald-50/80 text-emerald-700 text-xs font-semibold">
                 <FlaskConical className="h-3.5 w-3.5" />
-                Food Testing Guide
+                Food Safety Testing Guide
               </div>
               <h1 className="font-display text-5xl sm:text-6xl font-800 text-foreground mb-4 text-balance leading-[1.1]">
                 How to Test
@@ -878,7 +823,6 @@ export default function FoodTestingPage() {
               <p className="text-lg text-muted-foreground leading-relaxed mb-8 max-w-xl">
                 Step-by-step guides to test food quality and detect adulterants — both at home with everyday items and in a certified laboratory. Covers milk, honey, oil, spices, eggs, flour and more.
               </p>
-              {/* Stats row */}
               <div className="flex flex-wrap gap-4">
                 {[
                   { icon: Apple,       label: `${FOOD_ITEMS.length} food categories` },
@@ -894,7 +838,6 @@ export default function FoodTestingPage() {
               </div>
             </div>
 
-            {/* Hero Image */}
             <div className="hidden lg:block relative pb-6 pl-6">
               <div className="relative rounded-3xl overflow-hidden shadow-2xl border border-border/40">
                 <img
@@ -930,13 +873,10 @@ export default function FoodTestingPage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-
-          {/* ── LEFT: Food selector ─────────────────────────────────────────── */}
           <div className="lg:col-span-1">
             <div className="sticky top-24">
               <h2 className="font-display font-700 text-foreground text-lg mb-3">Choose a Food</h2>
 
-              {/* Search */}
               <div className="relative mb-4">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <input
@@ -975,7 +915,6 @@ export default function FoodTestingPage() {
                 ))}
               </div>
 
-              {/* CTA */}
               <div className="mt-5 p-4 rounded-2xl bg-primary/6 border border-primary/20">
                 <div className="flex items-center gap-2 mb-2">
                   <Building2 className="h-4 w-4 text-primary" />
@@ -990,10 +929,8 @@ export default function FoodTestingPage() {
             </div>
           </div>
 
-          {/* ── RIGHT: Test methods ─────────────────────────────────────────── */}
           <div className="lg:col-span-2">
             {!selectedFood ? (
-              /* Empty state */
               <div className="flex flex-col items-center justify-center py-24 text-center">
                 <div className="w-20 h-20 rounded-3xl bg-primary/8 flex items-center justify-center mb-6 text-4xl">
                   🔬
@@ -1005,7 +942,6 @@ export default function FoodTestingPage() {
               </div>
             ) : (
               <div className="animate-fade-up">
-                {/* Food header */}
                 <div className="flex items-start gap-4 p-6 rounded-2xl bg-card border border-border shadow-sm mb-6">
                   <div className="text-5xl">{selectedFood.emoji}</div>
                   <div className="flex-1">
@@ -1026,12 +962,11 @@ export default function FoodTestingPage() {
                   </div>
                 </div>
 
-                {/* Method type switcher */}
                 <div className="flex gap-2 p-1.5 bg-muted/60 rounded-2xl border border-border/60 mb-6">
                   {([
                     { id: 'home', label: 'Home Testing', icon: Home         },
                     { id: 'lab',  label: 'Lab Testing',  icon: Microscope   },
-                  ] as const).map(t => (
+                  ]).map(t => (
                     <button
                       key={t.id}
                       onClick={() => setActiveMethod(t.id)}
@@ -1048,7 +983,6 @@ export default function FoodTestingPage() {
                   ))}
                 </div>
 
-                {/* Home methods */}
                 {activeMethod === 'home' && selectedFood.homeMethods.length > 0 && (
                   <div className="mb-8">
                     <div className="flex items-center gap-3 mb-4">
@@ -1068,7 +1002,6 @@ export default function FoodTestingPage() {
                   </div>
                 )}
 
-                {/* Lab methods */}
                 {activeMethod === 'lab' && selectedFood.labMethods.length > 0 && (
                   <div className="mb-8">
                     <div className="flex items-center gap-3 mb-4">
@@ -1081,7 +1014,6 @@ export default function FoodTestingPage() {
                       </div>
                     </div>
 
-                    {/* Lab disclaimer */}
                     <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-50 border border-amber-200 mb-4">
                       <AlertTriangle className="h-4.5 w-4.5 text-amber-600 shrink-0 mt-0.5" />
                       <div>
@@ -1101,7 +1033,6 @@ export default function FoodTestingPage() {
                   </div>
                 )}
 
-                {/* What to do if you find adulteration */}
                 <div className="p-6 rounded-2xl bg-foreground text-background border-0">
                   <div className="flex items-center gap-2.5 mb-4">
                     <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center">
@@ -1144,5 +1075,3 @@ export default function FoodTestingPage() {
     </div>
   );
 }
-
-// end of file

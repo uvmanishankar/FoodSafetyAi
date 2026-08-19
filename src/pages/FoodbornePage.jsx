@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   AlertTriangle, Thermometer, Clock, Shield, ChevronDown, ChevronUp,
-  ArrowRight, Bot, Send, Loader2, User, Sparkles, Activity, Zap,
-  CheckCircle2, XCircle, Info, Heart, Package, Microscope, Search,
+  ArrowRight, Bot, Activity,
+  CheckCircle2, XCircle, Info, Heart, Package, Search,
   Home, Building2, Bell,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -17,7 +17,7 @@ const DISEASES = [
     onset:'6–72 hours', duration:'4–7 days',
     symptoms:['Diarrhoea (may be bloody)','Fever (38–40°C)','Stomach cramps and nausea','Vomiting','Headache and muscle pain'],
     prevention:['Cook poultry to 74°C internal temperature','Refrigerate within 2 hours of cooking','Wash hands after handling raw eggs','Avoid cross-contamination with raw poultry','Never eat raw batter or dough'],
-    treatment:'Usually self-limiting. Oral rehydration. Antibiotics only for severe cases. Seek hospital if fever &gt;39°C or bloody diarrhoea.',
+    treatment:'Usually self-limiting. Oral rehydration. Antibiotics only for severe cases. Seek hospital if fever >39°C or bloody diarrhoea.',
     atRisk:'Children under 5, elderly, pregnant women, immunocompromised individuals',
     india:'One of the most common food poisoning causes in India. Estimated 2–4 million cases annually. Peaks in monsoon.',
   },
@@ -58,7 +58,7 @@ const DISEASES = [
     id:'listeriosis', name:'Listeriosis', pathogen:'Listeria monocytogenes', severity:'critical', emoji:'🥗',
     color:'text-purple-700', bg:'bg-purple-50', border:'border-purple-200',
     foods:['Soft cheeses (brie, camembert)','Deli meats and sausages','Smoked fish','Pre-packed salads','Unpasteurised dairy products'],
-    onset:'1–4 weeks', duration:'Days to weeks',
+    onset:'1–4 weeks', duration:'Variable',
     symptoms:['Fever and muscle aches','Nausea or diarrhoea','Headache and stiff neck (meningitis form)','Confusion and loss of balance','Convulsions (severe cases)'],
     prevention:['Avoid soft cheeses during pregnancy','Refrigerate within 2 hours','Keep fridge at 4°C or below','Cook deli meats until steaming hot','Avoid unpasteurised dairy'],
     treatment:'Hospitalisation required for high-risk groups. IV antibiotics (ampicillin). High mortality rate in pregnant women — can cause miscarriage or stillbirth.',
@@ -144,14 +144,14 @@ Be warm but direct. Use clear sections. Emergency symptoms in RED language. Keep
   botIconBg: 'bg-red-100',
 };
 
-function DiseaseCard({d}:{d:typeof DISEASES[0]}){
+function DiseaseCard({d}){
   const[open,setOpen]=useState(false);
   const severityConfig={
     critical:{label:'CRITICAL',bg:'bg-red-100',text:'text-red-800',border:'border-red-300'},
     high:{label:'HIGH RISK',bg:'bg-orange-100',text:'text-orange-800',border:'border-orange-300'},
     medium:{label:'MODERATE',bg:'bg-amber-100',text:'text-amber-800',border:'border-amber-300'},
   };
-  const sc=severityConfig[d.severity as keyof typeof severityConfig];
+  const sc=severityConfig[d.severity];
   return(
     <div className={cn('rounded-2xl border overflow-hidden transition-all',d.border,open&&'shadow-md')}>
       <button onClick={()=>setOpen(o=>!o)} className={cn('w-full flex items-start gap-4 p-5 text-left transition-colors hover:bg-foreground/3',d.bg)}>
@@ -209,7 +209,7 @@ function DiseaseCard({d}:{d:typeof DISEASES[0]}){
 
 export default function FoodbornePage(){
   const[search,setSearch]=useState('');
-  const[sev,setSev]=useState<string|null>(null);
+  const[sev,setSev]=useState(null);
   const filtered=DISEASES.filter(d=>(!sev||d.severity===sev)&&(d.name.toLowerCase().includes(search.toLowerCase())||d.pathogen.toLowerCase().includes(search.toLowerCase())||d.foods.some(f=>f.toLowerCase().includes(search.toLowerCase()))));
   return(
     <div className="page-wrapper pt-12">
@@ -237,7 +237,6 @@ export default function FoodbornePage(){
                 ))}
               </div>
             </div>
-            {/* Hero Image */}
             <div className="hidden lg:block relative pb-6 pl-6">
               <div className="relative rounded-3xl overflow-hidden shadow-2xl border border-border/40">
                 <img
@@ -271,7 +270,6 @@ export default function FoodbornePage(){
         </div>
       </section>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12 space-y-12">
-        {/* Emergency banner */}
         <div className="p-5 rounded-2xl bg-red-600 text-white flex items-center gap-4">
           <AlertTriangle className="h-8 w-8 shrink-0"/>
           <div>
@@ -284,7 +282,6 @@ export default function FoodbornePage(){
             <p className="font-700">Emergency: 112</p>
           </div>
         </div>
-        {/* 4-step prevention */}
         <div>
           <h2 className="font-display text-2xl font-800 text-foreground mb-2">4 Core Prevention Principles</h2>
           <p className="text-muted-foreground text-sm mb-6">90% of foodborne illnesses are preventable with these four practices</p>
@@ -298,9 +295,7 @@ export default function FoodbornePage(){
             ))}
           </div>
         </div>
-        {/* Floating AI Symptom Checker */}
         <FloatingChatBot {...SYMPTOM_BOT_CONFIG} />
-        {/* Disease database */}
         <div>
           <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
             <div>
@@ -314,7 +309,6 @@ export default function FoodbornePage(){
           </div>
           <div className="space-y-3">{filtered.map(d=><DiseaseCard key={d.id} d={d}/>)}</div>
         </div>
-        {/* Related CTAs */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[{icon:Home,title:'Test Your Food at Home',desc:'Detect adulterants before illness strikes',href:'/testing-guide',color:'text-emerald-600'},{icon:Building2,title:'Find FSSAI Labs',desc:'Professional food safety testing near you',href:'/labs',color:'text-sky-600'},{icon:Bell,title:'Safety Alerts',desc:'Real-time food recalls and contamination alerts',href:'/alerts',color:'text-amber-600'}].map(({icon:Icon,title,desc,href,color})=>(
             <Link key={href} to={href} className="flex items-start gap-4 p-5 rounded-2xl bg-card border border-border hover:border-primary/30 hover:shadow-md transition-all group">
